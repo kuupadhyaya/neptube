@@ -9,7 +9,7 @@ const Layout = ({ children }: LayoutProps) => {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
       <div className="mb-8">
         <Link href="/" className="flex items-center gap-2">
-          <span className="text-2xl font-bold text-gray-900">NewTube</span>
+          <span className="text-2xl font-bold text-gray-900">NepTube</span>
         </Link>
       </div>
       {children}
