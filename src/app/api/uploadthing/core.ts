@@ -1,11 +1,42 @@
 import { createUploadthing, type FileRouter } from "uploadthing/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { UploadThingError } from "uploadthing/server";
 
 const f = createUploadthing();
+
+// Helper function to get or create user in database
+async function getOrCreateUser(clerkId: string) {
+  // Try to find existing user
+  let user = await db
+    .select()
+    .from(users)
+    .where(eq(users.clerkId, clerkId))
+    .limit(1);
+
+  if (user[0]) {
+    return user[0];
+  }
+
+  // User not found, create them from Clerk data
+  const clerk = await clerkClient();
+  const clerkUser = await clerk.users.getUser(clerkId);
+
+  const newUser = await db
+    .insert(users)
+    .values({
+      clerkId: clerkId,
+      name: clerkUser.firstName 
+        ? `${clerkUser.firstName} ${clerkUser.lastName || ""}`.trim()
+        : clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0] || "User",
+      imageURL: clerkUser.imageUrl || "",
+    })
+    .returning();
+
+  return newUser[0];
+}
 
 // FileRouter for your app, can contain multiple file routes
 export const ourFileRouter = {
@@ -24,23 +55,19 @@ export const ourFileRouter = {
         throw new UploadThingError("You must be logged in to upload videos");
       }
 
-      // Get user from database
-      const user = await db
-        .select()
-        .from(users)
-        .where(eq(users.clerkId, clerkId))
-        .limit(1);
+      // Get or create user in database
+      const user = await getOrCreateUser(clerkId);
 
-      if (!user[0]) {
-        throw new UploadThingError("User not found");
+      if (!user) {
+        throw new UploadThingError("Failed to get user");
       }
 
-      if (user[0].isBanned) {
+      if (user.isBanned) {
         throw new UploadThingError("Your account is suspended");
       }
 
       // Return metadata to be stored with the file
-      return { userId: user[0].id, clerkId };
+      return { userId: user.id, clerkId };
     })
     .onUploadComplete(async ({ metadata, file }) => {
       console.log("Video upload complete for user:", metadata.userId);
@@ -69,17 +96,14 @@ export const ourFileRouter = {
         throw new UploadThingError("You must be logged in to upload thumbnails");
       }
 
-      const user = await db
-        .select()
-        .from(users)
-        .where(eq(users.clerkId, clerkId))
-        .limit(1);
+      // Get or create user in database
+      const user = await getOrCreateUser(clerkId);
 
-      if (!user[0]) {
-        throw new UploadThingError("User not found");
+      if (!user) {
+        throw new UploadThingError("Failed to get user");
       }
 
-      return { userId: user[0].id };
+      return { userId: user.id };
     })
     .onUploadComplete(async ({ metadata, file }) => {
       console.log("Thumbnail upload complete for user:", metadata.userId);

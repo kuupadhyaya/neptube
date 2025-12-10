@@ -8,18 +8,22 @@ import {
   SignedIn,
   SignedOut,
   useClerk,
+  useUser,
 } from "@clerk/nextjs";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useRouter } from "next/navigation";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export const AuthButton = () => {
   const { signOut } = useClerk();
+  const { user, isLoaded } = useUser();
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -32,17 +36,30 @@ export const AuthButton = () => {
       <SignedIn>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <div className="cursor-pointer">
-              <UserButton
-                appearance={{
-                  elements: {
-                    avatarBox: "h-9 w-9",
-                  },
-                }}
-              />
-            </div>
+            <button className="flex items-center gap-2 hover:bg-gray-100 rounded-full px-2 py-1 transition-colors">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user?.imageUrl} alt={user?.fullName || "User"} />
+                <AvatarFallback>
+                  {user?.firstName?.[0] || user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() || "U"}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium hidden sm:inline-block max-w-[120px] truncate">
+                {user?.firstName || user?.emailAddresses?.[0]?.emailAddress?.split("@")[0] || "User"}
+              </span>
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">
+                  {user?.fullName || user?.firstName || "User"}
+                </p>
+                <p className="text-xs leading-none text-muted-foreground">
+                  {user?.emailAddresses?.[0]?.emailAddress}
+                </p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => router.push("/studio")}
               className="cursor-pointer"

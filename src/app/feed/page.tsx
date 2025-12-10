@@ -3,8 +3,9 @@
 import { trpc } from "@/trpc/client";
 import Link from "next/link";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
-import { Eye, Upload } from "lucide-react";
+import { Eye, Upload, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -104,8 +105,12 @@ function VideoCardSkeleton() {
 }
 
 function FeedPage() {
+  const searchParams = useSearchParams();
+  const searchQuery = searchParams.get("q") || "";
+
   const { data, isLoading, error } = trpc.videos.getFeed.useQuery({
     limit: 20,
+    search: searchQuery || undefined,
   });
 
   if (error) {
@@ -123,7 +128,9 @@ function FeedPage() {
     <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Recommended</h1>
+        <h1 className="text-2xl font-bold">
+          {searchQuery ? `Search results for "${searchQuery}"` : "Recommended"}
+        </h1>
         <Link href="/studio/upload">
           <Button>
             <Upload className="h-4 w-4 mr-2" />
@@ -142,18 +149,28 @@ function FeedPage() {
       ) : data?.items.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
           <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-            <Eye className="h-12 w-12 text-gray-400" />
+            {searchQuery ? (
+              <Search className="h-12 w-12 text-gray-400" />
+            ) : (
+              <Eye className="h-12 w-12 text-gray-400" />
+            )}
           </div>
-          <h2 className="text-xl font-semibold mb-2">No videos yet</h2>
+          <h2 className="text-xl font-semibold mb-2">
+            {searchQuery ? "No videos found" : "No videos yet"}
+          </h2>
           <p className="text-gray-500 mb-4">
-            Be the first to upload a video!
+            {searchQuery
+              ? `No videos match "${searchQuery}". Try a different search.`
+              : "Be the first to upload a video!"}
           </p>
-          <Link href="/studio/upload">
-            <Button>
-              <Upload className="h-4 w-4 mr-2" />
-              Upload Video
-            </Button>
-          </Link>
+          {!searchQuery && (
+            <Link href="/studio/upload">
+              <Button>
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Video
+              </Button>
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

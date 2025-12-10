@@ -1,18 +1,33 @@
 import { z } from "zod";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, ilike, or } from "drizzle-orm";
 import { baseProcedure, createTRPCRouter, protectedProcedure } from "../init";
 import { videos, users, videoLikes } from "@/db/schema";
 
 export const videosRouter = createTRPCRouter({
-  // Get all public videos (feed)
+  // Get all public videos (feed) with optional search
   getFeed: baseProcedure
     .input(
       z.object({
         limit: z.number().min(1).max(50).default(20),
         cursor: z.string().uuid().optional(),
+        search: z.string().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
+      const conditions = [eq(videos.visibility, "public")];
+      
+      // Add search conditions if search query provided
+      if (input.search && input.search.trim()) {
+        const searchTerm = `%${input.search.trim()}%`;
+        conditions.push(
+          or(
+            ilike(videos.title, searchTerm),
+            ilike(videos.description, searchTerm),
+            ilike(users.name, searchTerm)
+          )!
+        );
+      }
+
       const items = await ctx.db
         .select({
           id: videos.id,
@@ -30,7 +45,7 @@ export const videosRouter = createTRPCRouter({
         })
         .from(videos)
         .innerJoin(users, eq(videos.userId, users.id))
-        .where(eq(videos.visibility, "public"))
+        .where(and(...conditions))
         .orderBy(desc(videos.createdAt))
         .limit(input.limit + 1);
 
