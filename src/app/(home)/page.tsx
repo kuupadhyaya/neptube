@@ -1,13 +1,21 @@
 "use client"
-import {trpc } from "@/trpc/client";
+
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function Home() {
-  const { data } = trpc.hello.useQuery({ text: "from tRPC" });
+  const router = useRouter();
+  
+  useEffect(() => {
+    router.push("/feed");
+  }, [router]);
+  
   return (
-      <div>
-        <h1 className="text-5xl text-gray-500">Video incoming!!!</h1>
-        {data && <p>{data.greeting}</p>}
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
       </div>
-    
+    </div>
   );
 }

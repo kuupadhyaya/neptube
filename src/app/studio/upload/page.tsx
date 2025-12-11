@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Video, ImageIcon, ArrowLeft, Loader2, CheckCircle, Sparkles } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { toast } from "sonner";
 
 const categories = [
   "Entertainment",
@@ -52,6 +53,9 @@ export default function UploadVideoPage() {
     }
 
     setIsGeneratingThumbnail(true);
+    toast.info("Generating AI thumbnail...", {
+      description: "This may take a few seconds",
+    });
     try {
       const response = await fetch("/api/generate-thumbnail", {
         method: "POST",
@@ -68,9 +72,14 @@ export default function UploadVideoPage() {
       }
 
       setThumbnailUrl(data.thumbnailUrl);
+      toast.success("AI thumbnail generated!", {
+        description: "Your thumbnail is ready",
+      });
     } catch (error) {
       console.error("Error generating thumbnail:", error);
-      alert(error instanceof Error ? error.message : "Failed to generate thumbnail");
+      toast.error("Failed to generate thumbnail", {
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+      });
     } finally {
       setIsGeneratingThumbnail(false);
     }
@@ -79,13 +88,18 @@ export default function UploadVideoPage() {
   const createVideo = trpc.videos.create.useMutation({
     onSuccess: (data) => {
       setStep("done");
+      toast.success("Video uploaded successfully!", {
+        description: "Redirecting to your video...",
+      });
       // Redirect to the video after 2 seconds
       setTimeout(() => {
         router.push(`/feed/${data.id}`);
       }, 2000);
     },
     onError: (error) => {
-      alert("Error creating video: " + error.message);
+      toast.error("Failed to upload video", {
+        description: error.message,
+      });
       setIsSubmitting(false);
     },
   });
@@ -94,7 +108,9 @@ export default function UploadVideoPage() {
     e.preventDefault();
     
     if (!videoUrl || !title) {
-      alert("Please upload a video and enter a title");
+      toast.error("Missing required fields", {
+        description: "Please upload a video and enter a title",
+      });
       return;
     }
 
@@ -110,54 +126,54 @@ export default function UploadVideoPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <header className="bg-white border-b">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-4">
-          <Link href="/feed" className="text-gray-600 hover:text-gray-900">
+      <header className="bg-white dark:bg-gray-900 border-b dark:border-gray-800">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-4">
+          <Link href="/feed" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-xl font-semibold">Upload Video</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold dark:text-white">Upload Video</h1>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         {/* Progress Steps */}
-        <div className="flex items-center justify-center gap-4 mb-8">
-          <div className={`flex items-center gap-2 ${step === "upload" ? "text-blue-600" : "text-gray-400"}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === "upload" ? "bg-blue-600 text-white" : step === "details" || step === "done" ? "bg-green-500 text-white" : "bg-gray-200"}`}>
+        <div className="flex items-center justify-center gap-2 sm:gap-4 mb-8">
+          <div className={`flex items-center gap-2 ${step === "upload" ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500"}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm sm:text-base ${step === "upload" ? "bg-blue-600 text-white" : step === "details" || step === "done" ? "bg-green-500 text-white" : "bg-gray-200 dark:bg-gray-700"}`}>
               {step === "details" || step === "done" ? <CheckCircle className="h-5 w-5" /> : "1"}
             </div>
-            <span className="font-medium">Upload</span>
+            <span className="font-medium text-sm sm:text-base">Upload</span>
           </div>
-          <div className="w-16 h-0.5 bg-gray-200" />
-          <div className={`flex items-center gap-2 ${step === "details" ? "text-blue-600" : "text-gray-400"}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === "details" ? "bg-blue-600 text-white" : step === "done" ? "bg-green-500 text-white" : "bg-gray-200"}`}>
+          <div className="w-8 sm:w-16 h-0.5 bg-gray-200 dark:bg-gray-700" />
+          <div className={`flex items-center gap-2 ${step === "details" ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-gray-500"}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm sm:text-base ${step === "details" ? "bg-blue-600 text-white" : step === "done" ? "bg-green-500 text-white" : "bg-gray-200 dark:bg-gray-700"}`}>
               {step === "done" ? <CheckCircle className="h-5 w-5" /> : "2"}
             </div>
-            <span className="font-medium">Details</span>
+            <span className="font-medium text-sm sm:text-base">Details</span>
           </div>
-          <div className="w-16 h-0.5 bg-gray-200" />
-          <div className={`flex items-center gap-2 ${step === "done" ? "text-green-600" : "text-gray-400"}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step === "done" ? "bg-green-500 text-white" : "bg-gray-200"}`}>
+          <div className="w-8 sm:w-16 h-0.5 bg-gray-200 dark:bg-gray-700" />
+          <div className={`flex items-center gap-2 ${step === "done" ? "text-green-600 dark:text-green-400" : "text-gray-400 dark:text-gray-500"}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm sm:text-base ${step === "done" ? "bg-green-500 text-white" : "bg-gray-200 dark:bg-gray-700"}`}>
               {step === "done" ? <CheckCircle className="h-5 w-5" /> : "3"}
             </div>
-            <span className="font-medium">Done</span>
+            <span className="font-medium text-sm sm:text-base">Done</span>
           </div>
         </div>
 
         {/* Step 1: Upload Video */}
         {step === "upload" && (
-          <Card>
+          <Card className="dark:bg-gray-900 dark:border-gray-800">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-lg sm:text-xl dark:text-white">
                 <Video className="h-5 w-5" />
                 Upload your video
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
                   Upload a video file (max 512MB, recommended 3-5 minutes for demo)
                 </p>
                 
@@ -168,6 +184,9 @@ export default function UploadVideoPage() {
                     onClientUploadComplete={(res) => {
                       console.log("Upload complete:", res);
                       if (res && res[0]) {
+                        toast.success("Video file uploaded!", {
+                          description: "Now add details for your video",
+                        });
                         setVideoUrl(res[0].ufsUrl);
                         setVideoName(res[0].name);
                         setTitle(res[0].name.replace(/\.[^/.]+$/, ""));
@@ -176,13 +195,18 @@ export default function UploadVideoPage() {
                     }}
                     onUploadError={(error: Error) => {
                       console.error("Upload error:", error);
-                      alert(`Upload failed: ${error.message}`);
+                      toast.error("Upload failed", {
+                        description: error.message,
+                      });
                     }}
                     onUploadBegin={(name) => {
                       console.log("Upload started:", name);
+                      toast.info("Uploading video...", {
+                        description: name,
+                      });
                     }}
                   />
-                  <p className="text-sm text-gray-400">or drag and drop below</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500">or drag and drop below</p>
                 </div>
 
                 <UploadDropzone
@@ -190,6 +214,9 @@ export default function UploadVideoPage() {
                   onClientUploadComplete={(res) => {
                     console.log("Upload complete:", res);
                     if (res && res[0]) {
+                      toast.success("Video file uploaded!", {
+                        description: "Now add details for your video",
+                      });
                       setVideoUrl(res[0].ufsUrl);
                       setVideoName(res[0].name);
                       setTitle(res[0].name.replace(/\.[^/.]+$/, "")); // Remove extension for title
@@ -198,14 +225,16 @@ export default function UploadVideoPage() {
                   }}
                   onUploadError={(error: Error) => {
                     console.error("Upload error:", error);
-                    alert(`Upload failed: ${error.message}`);
+                    toast.error("Upload failed", {
+                      description: error.message,
+                    });
                   }}
                   onUploadBegin={(name) => {
                     console.log("Upload started:", name);
                   }}
-                  className="ut-label:text-lg ut-allowed-content:text-gray-500 ut-uploading:cursor-not-allowed border-2 border-dashed border-gray-300 rounded-lg p-8 hover:border-blue-500 transition-colors"
+                  className="ut-label:text-lg ut-allowed-content:text-gray-500 dark:ut-allowed-content:text-gray-400 ut-uploading:cursor-not-allowed border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 hover:border-blue-500 dark:hover:border-blue-400 transition-colors dark:bg-gray-800"
                 />
-                <p className="text-xs text-gray-500 text-center">
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 text-center">
                   By uploading, you agree to NepTube&apos;s Terms of Service
                 </p>
               </div>
@@ -216,16 +245,16 @@ export default function UploadVideoPage() {
         {/* Step 2: Video Details */}
         {step === "details" && (
           <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left: Form */}
-              <div className="md:col-span-2 space-y-6">
-                <Card>
+              <div className="lg:col-span-2 space-y-6">
+                <Card className="dark:bg-gray-900 dark:border-gray-800">
                   <CardHeader>
-                    <CardTitle>Video Details</CardTitle>
+                    <CardTitle className="text-lg sm:text-xl dark:text-white">Video Details</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div>
-                      <Label htmlFor="title">Title *</Label>
+                      <Label htmlFor="title" className="text-base dark:text-gray-300">Title *</Label>
                       <Input
                         id="title"
                         value={title}
@@ -233,12 +262,13 @@ export default function UploadVideoPage() {
                         placeholder="Enter video title"
                         required
                         maxLength={100}
+                        className="dark:bg-gray-800 dark:border-gray-700 dark:text-white text-base"
                       />
-                      <p className="text-xs text-gray-500 mt-1">{title.length}/100</p>
+                      <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">{title.length}/100</p>
                     </div>
 
                     <div>
-                      <Label htmlFor="description">Description</Label>
+                      <Label htmlFor="description" className="text-base dark:text-gray-300">Description</Label>
                       <Textarea
                         id="description"
                         value={description}
@@ -246,19 +276,20 @@ export default function UploadVideoPage() {
                         placeholder="Tell viewers about your video"
                         rows={5}
                         maxLength={5000}
+                        className="dark:bg-gray-800 dark:border-gray-700 dark:text-white text-base"
                       />
-                      <p className="text-xs text-gray-500 mt-1">{description.length}/5000</p>
+                      <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">{description.length}/5000</p>
                     </div>
 
                     <div>
-                      <Label htmlFor="category">Category</Label>
+                      <Label htmlFor="category" className="text-base dark:text-gray-300">Category</Label>
                       <Select value={category} onValueChange={setCategory}>
-                        <SelectTrigger>
+                        <SelectTrigger className="dark:bg-gray-800 dark:border-gray-700 dark:text-white text-base">
                           <SelectValue placeholder="Select a category" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="dark:bg-gray-800 dark:border-gray-700">
                           {categories.map((cat) => (
-                            <SelectItem key={cat} value={cat}>
+                            <SelectItem key={cat} value={cat} className="dark:text-white text-base">
                               {cat}
                             </SelectItem>
                           ))}
@@ -269,15 +300,15 @@ export default function UploadVideoPage() {
                 </Card>
 
                 {/* Thumbnail */}
-                <Card>
+                <Card className="dark:bg-gray-900 dark:border-gray-800">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="flex items-center gap-2 text-lg sm:text-xl dark:text-white">
                       <ImageIcon className="h-5 w-5" />
                       Thumbnail
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-gray-600 mb-4">
+                    <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-4">
                       Upload a custom thumbnail or generate one with AI
                     </p>
                     {thumbnailUrl ? (
