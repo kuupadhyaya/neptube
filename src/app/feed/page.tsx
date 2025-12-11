@@ -1,9 +1,13 @@
+
 "use client";
+
+import React, { useState, useEffect } from "react";
 
 import { trpc } from "@/trpc/client";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { formatDistanceToNow } from "date-fns";
 import { Eye, Upload, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +34,13 @@ function VideoCard({ video }: { video: {
     imageURL: string;
   };
 }}) {
+  const [createdAgo, setCreatedAgo] = useState<string>("");
+  useEffect(() => {
+    if (video?.createdAt) {
+      setCreatedAgo(formatDistanceToNow(new Date(video.createdAt), { addSuffix: true }));
+    }
+  }, [video?.createdAt]);
+
   return (
     <Link href={`/feed/${video.id}`} className="group">
       <div className="space-y-2">
@@ -79,7 +90,7 @@ function VideoCard({ video }: { video: {
             </h3>
             <p className="text-xs text-gray-600 mt-1">{video.user.name}</p>
             <p className="text-xs text-gray-500">
-              {formatViewCount(video.viewCount)} • {formatDistanceToNow(new Date(video.createdAt), { addSuffix: true })}
+              {formatViewCount(video.viewCount)} • <span suppressHydrationWarning>{createdAgo}</span>
             </p>
           </div>
         </div>
@@ -107,10 +118,17 @@ function VideoCardSkeleton() {
 function FeedPage() {
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get("q") || "";
+  const { user } = useUser();
+
+  // Get current user's database ID to exclude their videos from recommendations
+  const { data: currentUser } = trpc.users.me.useQuery(undefined, {
+    enabled: !!user,
+  });
 
   const { data, isLoading, error } = trpc.videos.getFeed.useQuery({
     limit: 20,
     search: searchQuery || undefined,
+    excludeUserId: currentUser?.id, // Don't show user's own videos in feed
   });
 
   if (error) {
@@ -131,12 +149,6 @@ function FeedPage() {
         <h1 className="text-2xl font-bold">
           {searchQuery ? `Search results for "${searchQuery}"` : "Recommended"}
         </h1>
-        <Link href="/studio/upload">
-          <Button>
-            <Upload className="h-4 w-4 mr-2" />
-            Upload
-          </Button>
-        </Link>
       </div>
 
       {/* Video Grid */}
@@ -163,14 +175,7 @@ function FeedPage() {
               ? `No videos match "${searchQuery}". Try a different search.`
               : "Be the first to upload a video!"}
           </p>
-          {!searchQuery && (
-            <Link href="/studio/upload">
-              <Button>
-                <Upload className="h-4 w-4 mr-2" />
-                Upload Video
-              </Button>
-            </Link>
-          )}
+          {/* Only show upload button in sidebar/profile, not here */}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

@@ -4,10 +4,9 @@ import {trpc } from "@/trpc/client";
 export default function Home() {
   const { data } = trpc.hello.useQuery({ text: "from tRPC" });
   return (
-      <div>
-        <h1 className="text-5xl text-gray-500">Video incoming!!!</h1>
-        {data && <p>{data.greeting}</p>}
+      <div className="min-h-screen bg-neutral-900 flex flex-col items-center justify-center">
+        <h1 className="text-5xl text-gray-100">Video incoming!!!</h1>
+        {data && <p className="text-gray-300">{data.greeting}</p>}
       </div>
-    
   );
 }
