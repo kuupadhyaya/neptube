@@ -78,16 +78,16 @@ export default function StudioPage() {
   const totalLikes = videos?.reduce((sum, v) => sum + v.likeCount, 0) || 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+      <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Link href="/feed" className="text-gray-500 hover:text-gray-700">
+              <Link href="/feed" className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
                 ← Back
               </Link>
-              <h1 className="text-2xl font-bold">Creator Studio</h1>
+              <h1 className="text-2xl font-bold dark:text-white">Creator Studio</h1>
             </div>
             <Link href="/studio/upload">
               <Button>
@@ -99,44 +99,44 @@ export default function StudioPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <Card className="dark:bg-gray-900 dark:border-gray-800">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 Total Videos
               </CardTitle>
-              <Video className="h-4 w-4 text-gray-400" />
+              <Video className="h-4 w-4 text-gray-400 dark:text-gray-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{videos?.length || 0}</div>
+              <div className="text-2xl font-bold dark:text-white">{videos?.length || 0}</div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="dark:bg-gray-900 dark:border-gray-800">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 Total Views
               </CardTitle>
-              <Eye className="h-4 w-4 text-gray-400" />
+              <Eye className="h-4 w-4 text-gray-400 dark:text-gray-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold dark:text-white">
                 {totalViews.toLocaleString()}
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="dark:bg-gray-900 dark:border-gray-800">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">
+              <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 Total Likes
               </CardTitle>
-              <ThumbsUp className="h-4 w-4 text-gray-400" />
+              <ThumbsUp className="h-4 w-4 text-gray-400 dark:text-gray-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold dark:text-white">
                 {totalLikes.toLocaleString()}
               </div>
             </CardContent>
@@ -144,22 +144,22 @@ export default function StudioPage() {
         </div>
 
         {/* Videos Table */}
-        <Card>
+        <Card className="dark:bg-gray-900 dark:border-gray-800">
           <CardHeader>
-            <CardTitle>Your Videos</CardTitle>
+            <CardTitle className="dark:text-white">Your Videos</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 Loading your videos...
               </div>
             ) : !videos || videos.length === 0 ? (
               <div className="text-center py-12">
-                <Video className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                <Video className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                   No videos yet
                 </h3>
-                <p className="text-gray-500 mb-4">
+                <p className="text-gray-500 dark:text-gray-400 mb-4">
                   Upload your first video to get started
                 </p>
                 <Link href="/studio/upload">
@@ -170,24 +170,25 @@ export default function StudioPage() {
                 </Link>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[400px]">Video</TableHead>
-                    <TableHead>Visibility</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Views</TableHead>
-                    <TableHead>Likes</TableHead>
-                    <TableHead>Date</TableHead>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="dark:border-gray-800">
+                      <TableHead className="w-[300px] sm:w-[400px] dark:text-gray-400">Video</TableHead>
+                      <TableHead className="dark:text-gray-400">Visibility</TableHead>
+                      <TableHead className="dark:text-gray-400">Status</TableHead>
+                      <TableHead className="dark:text-gray-400">Views</TableHead>
+                      <TableHead className="dark:text-gray-400">Likes</TableHead>
+                    <TableHead className="dark:text-gray-400">Date</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {videos.map((video) => (
-                    <TableRow key={video.id}>
+                    <TableRow key={video.id} className="dark:border-gray-800">
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="relative w-32 h-18 rounded overflow-hidden bg-gray-100 flex-shrink-0">
+                          <div className="relative w-24 sm:w-32 h-14 sm:h-18 rounded overflow-hidden bg-gray-100 dark:bg-gray-800 flex-shrink-0">
                             {video.thumbnailURL ? (
                               <Image
                                 src={video.thumbnailURL}
@@ -205,18 +206,18 @@ export default function StudioPage() {
                           <div className="min-w-0">
                             <Link
                               href={`/feed/${video.id}`}
-                              className="font-medium hover:text-blue-600 line-clamp-2"
+                              className="font-medium hover:text-blue-600 dark:text-gray-200 dark:hover:text-blue-400 line-clamp-2"
                             >
                               {video.title}
                             </Link>
-                            <p className="text-sm text-gray-500 line-clamp-1">
+                            <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">
                               {video.description || "No description"}
                             </p>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 dark:text-gray-300">
                           {getVisibilityIcon(video.visibility)}
                           <span className="capitalize text-sm">
                             {video.visibility}
@@ -224,9 +225,9 @@ export default function StudioPage() {
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(video.status)}</TableCell>
-                      <TableCell>{video.viewCount.toLocaleString()}</TableCell>
-                      <TableCell>{video.likeCount.toLocaleString()}</TableCell>
-                      <TableCell className="text-sm text-gray-500">
+                      <TableCell className="dark:text-gray-300">{video.viewCount.toLocaleString()}</TableCell>
+                      <TableCell className="dark:text-gray-300">{video.likeCount.toLocaleString()}</TableCell>
+                      <TableCell className="text-sm text-gray-500 dark:text-gray-400">
                         {format(new Date(video.createdAt), "MMM d, yyyy")}
                       </TableCell>
                       <TableCell>
@@ -265,6 +266,7 @@ export default function StudioPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>

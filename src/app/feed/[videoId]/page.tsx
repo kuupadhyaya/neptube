@@ -28,6 +28,8 @@ import { ThumbsUp, ThumbsDown, Share2, Flag, Eye, ArrowLeft } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { toast } from "sonner";
+import { useAuth } from "@clerk/nextjs";
 
 function VideoQualityPlayer({ video }: { video: Video }) {
   const qualities = video.qualities || (video.videoURL ? { Default: video.videoURL } : {});
@@ -139,6 +141,24 @@ export default function VideoPage() {
   const [createdAgo, setCreatedAgo] = useState<string>("");
   const params = useParams();
   const videoId = params.videoId as string;
+  const { isSignedIn } = useAuth();
+  const [hasViewed, setHasViewed] = useState(false);
+
+  // Check if anonymous user has already viewed this video (in this session)
+  const getAnonymousViewedVideos = useCallback(() => {
+    const viewed = sessionStorage.getItem("viewedVideos");
+    return viewed ? new Set(JSON.parse(viewed)) : new Set<string>();
+  }, []);
+
+  const addAnonymousViewedVideo = useCallback((id: string) => {
+    const viewed = getAnonymousViewedVideos();
+    viewed.add(id);
+    sessionStorage.setItem("viewedVideos", JSON.stringify(Array.from(viewed)));
+  }, [getAnonymousViewedVideos]);
+
+  const isAnonymousViewed = useCallback((id: string) => {
+    return getAnonymousViewedVideos().has(id);
+  }, [getAnonymousViewedVideos]);
 
   const { data: video, isLoading, error } = trpc.videos.getById.useQuery(
     { id: videoId },
@@ -152,14 +172,136 @@ export default function VideoPage() {
   }, [video?.createdAt]);
 
   const incrementViews = trpc.videos.incrementViews.useMutation();
+  const addToWatchHistory = trpc.videos.addToWatchHistory.useMutation();
+  const toggleLikeMutation = trpc.videos.toggleLike.useMutation();
+  const { data: likeStatus, refetch: refetchLikeStatus } = trpc.videos.getLikeStatus.useQuery(
+    { videoId },
+    { enabled: !!videoId && isSignedIn }
+  );
 
-  // Increment view count when video loads
+  const [localLikeStatus, setLocalLikeStatus] = useState<{ isLike: boolean } | null>(null);
+  const [localLikeCount, setLocalLikeCount] = useState<number>(0);
+  const [localDislikeCount, setLocalDislikeCount] = useState<number>(0);
+
+  // Update local like status when data changes
   useEffect(() => {
-    if (videoId) {
-      incrementViews.mutate({ id: videoId });
+    if (likeStatus) {
+      setLocalLikeStatus(likeStatus);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoId]);
+  }, [likeStatus]);
+
+  // Update local counts when video data changes
+  useEffect(() => {
+    if (video) {
+      setLocalLikeCount(video.likeCount);
+      setLocalDislikeCount(video.dislikeCount);
+    }
+  }, [video]);
+
+  // Increment view count once when video loads
+  useEffect(() => {
+    if (!videoId) return;
+
+    // For signed-in users: check if they've viewed this video before
+    if (isSignedIn) {
+      if (!hasViewed) {
+        setHasViewed(true);
+        // Only increment if first time viewing
+        incrementViews.mutate({ id: videoId });
+        // Add to watch history (increments or updates)
+        addToWatchHistory.mutate({ videoId });
+      }
+    } else {
+      // For anonymous users: track views in sessionStorage
+      if (!isAnonymousViewed(videoId)) {
+        addAnonymousViewedVideo(videoId);
+        // For anonymous users, we don't actually increment the view count
+        // This is to prevent manipulation - only authenticated views count
+      }
+    }
+  }, [videoId, hasViewed, isSignedIn, incrementViews, addToWatchHistory, isAnonymousViewed, addAnonymousViewedVideo]);
+
+  const handleLike = async () => {
+    if (!isSignedIn) {
+      toast.error("Please sign in to like videos");
+      return;
+    }
+
+    const previousStatus = localLikeStatus;
+    const previousLikeCount = localLikeCount;
+    const previousDislikeCount = localDislikeCount;
+    
+    // Optimistic update for like status
+    if (localLikeStatus?.isLike === true) {
+      // Removing like
+      setLocalLikeStatus(null);
+      setLocalLikeCount(prev => prev - 1);
+    } else if (localLikeStatus?.isLike === false) {
+      // Switching from dislike to like
+      setLocalLikeStatus({ isLike: true });
+      setLocalLikeCount(prev => prev + 1);
+      setLocalDislikeCount(prev => prev - 1);
+    } else {
+      // Adding new like
+      setLocalLikeStatus({ isLike: true });
+      setLocalLikeCount(prev => prev + 1);
+    }
+
+    try {
+      await toggleLikeMutation.mutateAsync({
+        videoId,
+        isLike: true,
+      });
+      await refetchLikeStatus();
+    } catch {
+      // Revert on error
+      setLocalLikeStatus(previousStatus);
+      setLocalLikeCount(previousLikeCount);
+      setLocalDislikeCount(previousDislikeCount);
+      toast.error("Failed to like video");
+    }
+  };
+
+  const handleDislike = async () => {
+    if (!isSignedIn) {
+      toast.error("Please sign in to dislike videos");
+      return;
+    }
+
+    const previousStatus = localLikeStatus;
+    const previousLikeCount = localLikeCount;
+    const previousDislikeCount = localDislikeCount;
+    
+    // Optimistic update for dislike status
+    if (localLikeStatus?.isLike === false) {
+      // Removing dislike
+      setLocalLikeStatus(null);
+      setLocalDislikeCount(prev => prev - 1);
+    } else if (localLikeStatus?.isLike === true) {
+      // Switching from like to dislike
+      setLocalLikeStatus({ isLike: false });
+      setLocalDislikeCount(prev => prev + 1);
+      setLocalLikeCount(prev => prev - 1);
+    } else {
+      // Adding new dislike
+      setLocalLikeStatus({ isLike: false });
+      setLocalDislikeCount(prev => prev + 1);
+    }
+
+    try {
+      await toggleLikeMutation.mutateAsync({
+        videoId,
+        isLike: false,
+      });
+      await refetchLikeStatus();
+    } catch {
+      // Revert on error
+      setLocalLikeStatus(previousStatus);
+      setLocalLikeCount(previousLikeCount);
+      setLocalDislikeCount(previousDislikeCount);
+      toast.error("Failed to dislike video");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -212,7 +354,7 @@ export default function VideoPage() {
             </div>
 
           {/* Title */}
-          <h1 className="text-xl font-bold">{video.title}</h1>
+          <h1 className="text-xl font-bold dark:text-white">{video.title}</h1>
 
           {/* Stats and Actions */}
           <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b">
@@ -235,11 +377,11 @@ export default function VideoPage() {
                   {formatViewCount(video.dislikeCount)}
                 </Button>
               </div>
-              <Button variant="ghost" size="sm" className="gap-1">
+              <Button variant="ghost" size="sm" className="gap-1 dark:text-gray-300">
                 <Share2 className="h-4 w-4" />
                 Share
               </Button>
-              <Button variant="ghost" size="sm" className="gap-1">
+              <Button variant="ghost" size="sm" className="gap-1 dark:text-gray-300">
                 <Flag className="h-4 w-4" />
                 Report
               </Button>
@@ -255,7 +397,7 @@ export default function VideoPage() {
             <div className="flex-1">
               <div className="flex items-center justify-between">
                 <div>
-                  <Link href={`/channel/${video.user.id}`} className="font-semibold hover:underline">
+                  <Link href={`/channel/${video.user.id}`} className="font-semibold hover:underline dark:text-white">
                     {video.user.name}
                   </Link>
                 </div>
