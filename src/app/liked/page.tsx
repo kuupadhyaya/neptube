@@ -130,9 +130,21 @@ function VideoCardSkeleton() {
 }
 
 function LikedVideosContent() {
-  const { data, isLoading, error } = trpc.videos.getLikedVideos.useQuery({
+  const { data: rawData, isLoading, error } = trpc.playlists.getLikedVideos.useQuery({
     limit: 20,
   });
+
+  // Transform to match VideoCard props
+  const data = rawData?.map((item) => ({
+    id: item.id,
+    title: item.title,
+    description: null as string | null,
+    thumbnailURL: item.thumbnailURL,
+    duration: item.duration,
+    viewCount: item.viewCount,
+    createdAt: String(item.createdAt),
+    user: item.user,
+  }));
 
   if (isLoading) {
     return (
@@ -156,7 +168,7 @@ function LikedVideosContent() {
     );
   }
 
-  if (!data?.items.length) {
+  if (!data?.length) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
         <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -172,7 +184,7 @@ function LikedVideosContent() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-10">
-      {data.items.map((video) => (
+      {data.map((video) => (
         <VideoCard key={video.id} video={video} />
       ))}
     </div>

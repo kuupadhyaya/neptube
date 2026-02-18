@@ -203,7 +203,7 @@ export default function AdminVideosPage() {
                   </TableCell>
                   <TableCell>{getStatusBadge(video.status)}</TableCell>
                   <TableCell>
-                    {video.approved ? (
+                    {video.status === "published" ? (
                       <Badge className="bg-green-100 text-green-800">Approved</Badge>
                     ) : (
                       <Badge className="bg-yellow-100 text-yellow-800">Unapproved</Badge>
@@ -220,8 +220,8 @@ export default function AdminVideosPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Badge className="bg-blue-100 text-blue-800">{video.status} | approved: {String(video.approved)}</Badge>
-                      {(video.status === "pending" || (video.status === "published" && (video.approved === false || video.approved === null || typeof video.approved === "undefined"))) && (
+                      <Badge className="bg-blue-100 text-blue-800">{video.status}</Badge>
+                      {video.status === "pending" && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -243,7 +243,7 @@ export default function AdminVideosPage() {
                           Reject
                         </Button>
                       )}
-                      {video.status === "published" && video.approved && (
+                      {video.status === "published" && (
                         <Button
                           size="sm"
                           variant="outline"

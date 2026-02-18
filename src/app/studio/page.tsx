@@ -178,6 +178,7 @@ export default function StudioPage() {
                     <TableHead>Status</TableHead>
                     <TableHead>Views</TableHead>
                     <TableHead>Likes</TableHead>
+                    <TableHead>Quality</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
@@ -225,6 +226,21 @@ export default function StudioPage() {
                       <TableCell>{getStatusBadge(video.status)}</TableCell>
                       <TableCell>{video.viewCount.toLocaleString()}</TableCell>
                       <TableCell>{video.likeCount.toLocaleString()}</TableCell>
+                      <TableCell>
+                        {video.qualityScore !== null && video.qualityScore !== undefined ? (
+                          <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full ${
+                            video.qualityScore >= 70
+                              ? "bg-emerald-500/10 text-emerald-600"
+                              : video.qualityScore >= 40
+                                ? "bg-yellow-500/10 text-yellow-600"
+                                : "bg-red-500/10 text-red-600"
+                          }`}>
+                            {video.qualityScore}/100
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {format(new Date(video.createdAt), "MMM d, yyyy")}
                       </TableCell>

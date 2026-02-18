@@ -210,7 +210,6 @@ export const adminRouter = createTRPCRouter({
           visibility: videos.visibility,
           viewCount: videos.viewCount,
           createdAt: videos.createdAt,
-          approved: videos.approved,
           user: {
             id: users.id,
             name: users.name,
@@ -245,23 +244,11 @@ export const adminRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Always set approved to true if admin is approving, even if status is already published
-      let setFields: any = {
+      const setFields: Record<string, unknown> = {
+        status: input.status,
         updatedAt: new Date(),
         rejectionReason: input.rejectionReason,
       };
-      if (input.status === "published") {
-        setFields.status = "published";
-        setFields.approved = true;
-      } else if (input.status === "pending") {
-        setFields.status = "pending";
-        setFields.approved = false;
-      } else if (input.status === "rejected") {
-        setFields.status = "rejected";
-        setFields.approved = false;
-      } else {
-        setFields.status = input.status;
-      }
       const updated = await ctx.db
         .update(videos)
         .set(setFields)

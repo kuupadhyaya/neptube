@@ -705,3 +705,375 @@ export function calculateTrendingScore(
   const engagement = viewCount + likeCount * 3 - dislikeCount + commentCount * 2;
   return engagement * decayFactor;
 }
+
+// ─── Spam Detection ─────────────────────────────────────────────────────────
+
+export interface SpamResult {
+  isSpam: boolean;
+  score: number; // 0 to 1
+  reason: string;
+}
+
+export async function detectSpam(text: string): Promise<SpamResult> {
+  const prompt = `Analyze this comment for spam. Check for:
+- Self-promotion / excessive links
+- Repetitive/copy-paste patterns
+- Irrelevant advertising
+- Bot-like behavior
+- "First!" or empty engagement bait
+
+Comment: "${text.slice(0, 500)}"
+
+Return ONLY valid JSON: {"isSpam":boolean,"score":0.0-1.0,"reason":"brief reason"}`;
+
+  try {
+    const raw = await pollinationsText({
+      prompt,
+      systemPrompt:
+        "You detect spam in video comments. Return only valid JSON.",
+      jsonMode: true,
+    });
+
+    const cleaned = raw.replace(/```json\n?|```\n?/g, "").trim();
+    const result = JSON.parse(cleaned);
+    return {
+      isSpam: typeof result.isSpam === "boolean" ? result.isSpam : false,
+      score: typeof result.score === "number" ? Math.max(0, Math.min(1, result.score)) : 0,
+      reason: typeof result.reason === "string" ? result.reason.slice(0, 200) : "",
+    };
+  } catch (err) {
+    console.error("Spam detection failed:", err);
+    return { isSpam: false, score: 0, reason: "" };
+  }
+}
+
+// ─── Emotion Detection ──────────────────────────────────────────────────────
+
+export type Emotion =
+  | "joy"
+  | "anger"
+  | "sadness"
+  | "surprise"
+  | "fear"
+  | "disgust"
+  | "love"
+  | "neutral";
+
+export interface EmotionResult {
+  emotion: Emotion;
+  confidence: number; // 0 to 1
+  secondaryEmotion?: Emotion;
+}
+
+export async function detectEmotion(text: string): Promise<EmotionResult> {
+  const prompt = `Detect the primary emotion in this text: joy, anger, sadness, surprise, fear, disgust, love, or neutral.
+
+Text: "${text.slice(0, 500)}"
+
+Return ONLY valid JSON: {"emotion":"...", "confidence":0.0-1.0, "secondaryEmotion":"..." or null}`;
+
+  try {
+    const raw = await pollinationsText({
+      prompt,
+      systemPrompt:
+        "You detect emotions in text. Return only valid JSON. Allowed emotions: joy, anger, sadness, surprise, fear, disgust, love, neutral.",
+      jsonMode: true,
+    });
+
+    const cleaned = raw.replace(/```json\n?|```\n?/g, "").trim();
+    const result = JSON.parse(cleaned);
+    const validEmotions: Emotion[] = [
+      "joy", "anger", "sadness", "surprise", "fear", "disgust", "love", "neutral",
+    ];
+    const emotion = validEmotions.includes(result.emotion) ? result.emotion : "neutral";
+    const confidence =
+      typeof result.confidence === "number"
+        ? Math.max(0, Math.min(1, result.confidence))
+        : 0.5;
+    const secondaryEmotion =
+      result.secondaryEmotion && validEmotions.includes(result.secondaryEmotion)
+        ? result.secondaryEmotion
+        : undefined;
+
+    return { emotion, confidence, secondaryEmotion };
+  } catch (err) {
+    console.error("Emotion detection failed:", err);
+    return { emotion: "neutral", confidence: 0.5 };
+  }
+}
+
+// ─── Language Detection ─────────────────────────────────────────────────────
+
+export interface LanguageResult {
+  language: string; // ISO 639-1 code (e.g., "en", "es", "ja")
+  languageName: string; // Full name (e.g., "English")
+  confidence: number;
+}
+
+export async function detectLanguage(text: string): Promise<LanguageResult> {
+  const prompt = `Detect the language of this text.
+
+Text: "${text.slice(0, 300)}"
+
+Return ONLY valid JSON: {"language":"en","languageName":"English","confidence":0.95}
+Use ISO 639-1 language codes.`;
+
+  try {
+    const raw = await pollinationsText({
+      prompt,
+      systemPrompt:
+        "You detect languages. Return only valid JSON with ISO 639-1 code.",
+      jsonMode: true,
+    });
+
+    const cleaned = raw.replace(/```json\n?|```\n?/g, "").trim();
+    const result = JSON.parse(cleaned);
+    return {
+      language: typeof result.language === "string" ? result.language.slice(0, 5) : "en",
+      languageName: typeof result.languageName === "string" ? result.languageName.slice(0, 30) : "English",
+      confidence:
+        typeof result.confidence === "number"
+          ? Math.max(0, Math.min(1, result.confidence))
+          : 0.5,
+    };
+  } catch (err) {
+    console.error("Language detection failed:", err);
+    return { language: "en", languageName: "English", confidence: 0.5 };
+  }
+}
+
+// ─── Keyword Extraction ─────────────────────────────────────────────────────
+
+export async function extractKeywords(
+  title: string,
+  description?: string | null,
+  transcript?: string | null
+): Promise<string[]> {
+  const context = transcript
+    ? `Transcript (first 2000 chars): "${transcript.slice(0, 2000)}"`
+    : description
+      ? `Description: "${description}"`
+      : "";
+
+  const prompt = `Extract 5-10 key topics/keywords from this video content. These should be informative, specific terms (not generic words).
+
+Title: "${title}"
+${context}
+
+Return ONLY a JSON array of keyword strings. Example: ["machine learning","neural networks","python","deep learning"]`;
+
+  try {
+    const raw = await pollinationsText({
+      prompt,
+      systemPrompt:
+        "You extract important keywords from content. Return only valid JSON arrays of strings.",
+      jsonMode: true,
+    });
+
+    const cleaned = raw.replace(/```json\n?|```\n?/g, "").trim();
+    const keywords = JSON.parse(cleaned);
+    if (Array.isArray(keywords)) {
+      return keywords
+        .filter((k): k is string => typeof k === "string")
+        .map((k) => k.toLowerCase().trim())
+        .slice(0, 10);
+    }
+    return [];
+  } catch (err) {
+    console.error("Keyword extraction failed:", err);
+    return [];
+  }
+}
+
+// ─── Content Quality Scoring ────────────────────────────────────────────────
+
+export interface QualityScore {
+  overall: number; // 0-100
+  titleQuality: number; // 0-100
+  descriptionQuality: number; // 0-100
+  engagementPotential: number; // 0-100
+  suggestions: string[];
+}
+
+export async function scoreContentQuality(
+  title: string,
+  description?: string | null,
+  transcript?: string | null,
+  tags?: string[] | null,
+  duration?: number | null
+): Promise<QualityScore> {
+  const prompt = `Rate this video's content quality on multiple dimensions (0-100 each).
+
+Title: "${title}"
+${description ? `Description: "${description.slice(0, 500)}"` : "No description"}
+${tags?.length ? `Tags: ${tags.join(", ")}` : "No tags"}
+${transcript ? `Has transcript: Yes (${transcript.length} chars)` : "No transcript"}
+${duration ? `Duration: ${Math.floor(duration / 60)}min ${duration % 60}s` : "Unknown duration"}
+
+Evaluate:
+1. titleQuality: Is the title clear, engaging, not clickbait?
+2. descriptionQuality: Is the description informative and complete?
+3. engagementPotential: Will this attract and retain viewers?
+4. overall: Average weighted score
+
+Also provide 1-3 brief actionable suggestions to improve.
+
+Return ONLY valid JSON: {"overall":75,"titleQuality":80,"descriptionQuality":60,"engagementPotential":85,"suggestions":["Add a description","Include timestamps"]}`;
+
+  try {
+    const raw = await pollinationsText({
+      prompt,
+      systemPrompt:
+        "You evaluate video content quality. Be constructive and fair. Return only valid JSON.",
+      jsonMode: true,
+    });
+
+    const cleaned = raw.replace(/```json\n?|```\n?/g, "").trim();
+    const result = JSON.parse(cleaned);
+    const clampScore = (s: unknown) =>
+      typeof s === "number" ? Math.max(0, Math.min(100, Math.round(s))) : 50;
+
+    return {
+      overall: clampScore(result.overall),
+      titleQuality: clampScore(result.titleQuality),
+      descriptionQuality: clampScore(result.descriptionQuality),
+      engagementPotential: clampScore(result.engagementPotential),
+      suggestions: Array.isArray(result.suggestions)
+        ? result.suggestions
+            .filter((s: unknown): s is string => typeof s === "string")
+            .slice(0, 3)
+        : [],
+    };
+  } catch (err) {
+    console.error("Quality scoring failed:", err);
+    return {
+      overall: 50,
+      titleQuality: 50,
+      descriptionQuality: 50,
+      engagementPotential: 50,
+      suggestions: [],
+    };
+  }
+}
+
+// ─── Smart Search Query Expansion ───────────────────────────────────────────
+
+export async function expandSearchQuery(userQuery: string): Promise<string[]> {
+  const prompt = `A user is searching a video platform for: "${userQuery}"
+
+Generate 3-5 expanded search terms that capture different interpretations and synonyms.
+Example: for "js tutorial" → ["javascript tutorial", "javascript beginner guide", "learn javascript", "js programming"]
+
+Return ONLY a JSON array of strings.`;
+
+  try {
+    const raw = await pollinationsText({
+      prompt,
+      systemPrompt:
+        "You expand search queries with synonyms and related terms. Return only valid JSON arrays.",
+      jsonMode: true,
+    });
+
+    const cleaned = raw.replace(/```json\n?|```\n?/g, "").trim();
+    const terms = JSON.parse(cleaned);
+    if (Array.isArray(terms)) {
+      return [userQuery, ...terms.filter((t): t is string => typeof t === "string").slice(0, 5)];
+    }
+    return [userQuery];
+  } catch (err) {
+    console.error("Search query expansion failed:", err);
+    return [userQuery];
+  }
+}
+
+// ─── Reply Suggestions ──────────────────────────────────────────────────────
+
+export async function generateReplySuggestions(
+  commentContent: string,
+  videoTitle: string
+): Promise<string[]> {
+  const prompt = `Suggest 3 short, natural reply options for this comment on a video titled "${videoTitle}".
+
+Comment: "${commentContent.slice(0, 300)}"
+
+Generate 3 different reply styles:
+1. Friendly/positive
+2. Informative/helpful
+3. Engaging question
+
+Return ONLY a JSON array of 3 reply strings. Keep each under 100 characters.`;
+
+  try {
+    const raw = await pollinationsText({
+      prompt,
+      systemPrompt:
+        "You generate natural comment replies. Return only valid JSON arrays of strings.",
+      jsonMode: true,
+    });
+
+    const cleaned = raw.replace(/```json\n?|```\n?/g, "").trim();
+    const replies = JSON.parse(cleaned);
+    if (Array.isArray(replies)) {
+      return replies.filter((r): r is string => typeof r === "string").slice(0, 3);
+    }
+    return [];
+  } catch (err) {
+    console.error("Reply suggestion failed:", err);
+    return [];
+  }
+}
+
+// ─── Personalized Feed Scoring ──────────────────────────────────────────────
+
+export function personalizedFeedScore(
+  video: {
+    tags: string[] | null;
+    category: string | null;
+    viewCount: number;
+    likeCount: number;
+    dislikeCount: number;
+    commentCount: number;
+    createdAt: Date | string;
+  },
+  userPreferences: {
+    watchedCategories: Record<string, number>; // category -> watch count
+    watchedTags: Record<string, number>; // tag -> watch count
+    totalWatched: number;
+  }
+): number {
+  let score = 0;
+
+  // Category match score (0-40)
+  if (video.category && userPreferences.watchedCategories[video.category]) {
+    const categoryFreq =
+      userPreferences.watchedCategories[video.category] /
+      Math.max(1, userPreferences.totalWatched);
+    score += categoryFreq * 40;
+  }
+
+  // Tag overlap score (0-40)
+  if (video.tags && video.tags.length > 0) {
+    let tagScore = 0;
+    for (const tag of video.tags) {
+      if (userPreferences.watchedTags[tag]) {
+        tagScore +=
+          userPreferences.watchedTags[tag] /
+          Math.max(1, userPreferences.totalWatched);
+      }
+    }
+    score += Math.min(40, tagScore * 40);
+  }
+
+  // Engagement quality (0-10)
+  const totalVotes = video.likeCount + video.dislikeCount;
+  if (totalVotes > 0) {
+    score += (video.likeCount / totalVotes) * 10;
+  }
+
+  // Recency bonus (0-10)
+  const ageHours =
+    (Date.now() - new Date(video.createdAt).getTime()) / (1000 * 60 * 60);
+  score += Math.max(0, 10 - ageHours / 24);
+
+  return Math.round(score * 100) / 100;
+}

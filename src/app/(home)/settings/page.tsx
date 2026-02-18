@@ -70,10 +70,6 @@ export default function EditProfilePage() {
                   }}
                   onUploadError={err => alert("Upload failed: " + err.message)}
                   className="ut-label:text-sm border-2 border-dashed border-blue-700 rounded-lg p-4 hover:border-blue-500 transition-colors bg-neutral-900"
-                  config={{
-                    maxFiles: 2,
-                    label: 'Choose Pictures',
-                  }}
                 />
                 <div className="flex flex-col sm:flex-row gap-4 mt-2">
                   {imageUrl && (

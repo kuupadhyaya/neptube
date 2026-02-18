@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq, desc, and, sql, ilike, or, ne, inArray, lt } from "drizzle-orm";
 import { baseProcedure, createTRPCRouter, protectedProcedure } from "../init";
-import { videos, users, videoLikes, subscriptions, notifications, comments } from "@/db/schema";
+import { videos, users, videoLikes, subscriptions, notifications, comments, watchHistory } from "@/db/schema";
 import {
   generateTags,
   generateSummary,
@@ -14,6 +14,13 @@ import {
   autoCategorizVideo,
   calculateTrendingScore,
   summarizeComments,
+  detectSpam,
+  detectEmotion,
+  detectLanguage,
+  extractKeywords,
+  scoreContentQuality,
+  expandSearchQuery,
+  personalizedFeedScore,
 } from "@/lib/ai";
 import { rateLimit, UPLOAD_RATE_LIMIT, LIKE_RATE_LIMIT, AI_RATE_LIMIT } from "@/lib/rate-limit";
 import { TRPCError } from "@trpc/server";
@@ -115,6 +122,10 @@ export const videosRouter = createTRPCRouter({
           transcript: videos.transcript,
           chapters: videos.chapters,
           subtitlesVTT: videos.subtitlesVTT,
+          keywords: videos.keywords,
+          language: videos.language,
+          languageName: videos.languageName,
+          qualityScore: videos.qualityScore,
           nsfwScore: videos.nsfwScore,
           isNsfw: videos.isNsfw,
           commentCount: videos.commentCount,
@@ -285,7 +296,30 @@ export const videosRouter = createTRPCRouter({
             })
             .where(eq(videos.id, videoId));
 
-          // 5. Transcription (longer running, separate update)
+          // 5. Language detection + Keywords + Quality score (parallel)
+          const [langResult, keywords, qualityResult] = await Promise.all([
+            detectLanguage(input.title + " " + (input.description || "")),
+            extractKeywords(input.title, input.description),
+            scoreContentQuality(
+              input.title,
+              input.description,
+              null, // no transcript yet
+              tags.length > 0 ? tags : null,
+              input.duration
+            ),
+          ]);
+
+          await ctx.db
+            .update(videos)
+            .set({
+              language: langResult.language,
+              languageName: langResult.languageName,
+              keywords: keywords.length > 0 ? keywords : undefined,
+              qualityScore: qualityResult.overall,
+            })
+            .where(eq(videos.id, videoId));
+
+          // 6. Transcription (longer running, separate update)
           if (input.videoURL) {
             const transcript = await transcribeVideo(input.videoURL);
             if (transcript) {
@@ -296,11 +330,27 @@ export const videosRouter = createTRPCRouter({
                 transcript
               );
 
-              // 6. Generate chapters from transcript
+              // 6b. Generate chapters from transcript
               const chapters = await generateChapters(
                 input.title,
                 input.description,
                 transcript,
+                input.duration
+              );
+
+              // 6c. Re-extract keywords with transcript for better quality
+              const betterKeywords = await extractKeywords(
+                input.title,
+                input.description,
+                transcript
+              );
+
+              // 6d. Re-score quality with transcript
+              const betterQuality = await scoreContentQuality(
+                input.title,
+                input.description,
+                transcript,
+                tags.length > 0 ? tags : null,
                 input.duration
               );
 
@@ -310,6 +360,8 @@ export const videosRouter = createTRPCRouter({
                   transcript,
                   aiSummary: betterSummary || aiSummary || undefined,
                   chapters: chapters.length > 0 ? chapters : undefined,
+                  keywords: betterKeywords.length > 0 ? betterKeywords : undefined,
+                  qualityScore: betterQuality.overall,
                 })
                 .where(eq(videos.id, videoId));
             }
@@ -850,5 +902,242 @@ export const videosRouter = createTRPCRouter({
 
       const summary = await summarizeComments(videoComments);
       return { summary, commentCount: videoComments.length };
+    }),
+
+  // Personalized "For You" feed based on watch history
+  getPersonalizedFeed: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(50).default(20),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      // 1. Get user's watch history to build preferences
+      const history = await ctx.db
+        .select({
+          videoId: watchHistory.videoId,
+          category: videos.category,
+          tags: videos.tags,
+        })
+        .from(watchHistory)
+        .innerJoin(videos, eq(watchHistory.videoId, videos.id))
+        .where(eq(watchHistory.userId, ctx.user.id))
+        .orderBy(desc(watchHistory.watchedAt))
+        .limit(100);
+
+      // Build user preference profile
+      const watchedCategories: Record<string, number> = {};
+      const watchedTags: Record<string, number> = {};
+      const watchedVideoIds = new Set(history.map((h) => h.videoId));
+
+      for (const h of history) {
+        if (h.category) {
+          watchedCategories[h.category] = (watchedCategories[h.category] || 0) + 1;
+        }
+        if (h.tags && Array.isArray(h.tags)) {
+          for (const tag of h.tags) {
+            watchedTags[tag] = (watchedTags[tag] || 0) + 1;
+          }
+        }
+      }
+
+      const userPrefs = {
+        watchedCategories,
+        watchedTags,
+        totalWatched: history.length,
+      };
+
+      // 2. Get candidate videos (not already watched)
+      const candidates = await ctx.db
+        .select({
+          id: videos.id,
+          title: videos.title,
+          description: videos.description,
+          thumbnailURL: videos.thumbnailURL,
+          duration: videos.duration,
+          viewCount: videos.viewCount,
+          likeCount: videos.likeCount,
+          dislikeCount: videos.dislikeCount,
+          commentCount: videos.commentCount,
+          createdAt: videos.createdAt,
+          tags: videos.tags,
+          category: videos.category,
+          isNsfw: videos.isNsfw,
+          qualityScore: videos.qualityScore,
+          user: {
+            id: users.id,
+            name: users.name,
+            imageURL: users.imageURL,
+          },
+        })
+        .from(videos)
+        .innerJoin(users, eq(videos.userId, users.id))
+        .where(eq(videos.visibility, "public"))
+        .orderBy(desc(videos.createdAt))
+        .limit(200);
+
+      // 3. Score and rank by personalization
+      const scored = candidates
+        .filter((v) => !watchedVideoIds.has(v.id))
+        .map((v) => ({
+          ...v,
+          personalScore: personalizedFeedScore(v, userPrefs),
+        }))
+        .sort((a, b) => b.personalScore - a.personalScore)
+        .slice(0, input.limit);
+
+      return scored;
+    }),
+
+  // Smart search with AI query expansion
+  smartSearch: baseProcedure
+    .input(
+      z.object({
+        query: z.string().min(1).max(200),
+        limit: z.number().min(1).max(50).default(20),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      // Expand the user's query using AI
+      const expandedTerms = await expandSearchQuery(input.query);
+
+      // Build search conditions from all expanded terms
+      const searchConditions = expandedTerms.map((term) => {
+        const searchTerm = `%${term.trim()}%`;
+        return or(
+          ilike(videos.title, searchTerm),
+          ilike(videos.description, searchTerm),
+          ilike(users.name, searchTerm)
+        );
+      });
+
+      const results = await ctx.db
+        .select({
+          id: videos.id,
+          title: videos.title,
+          description: videos.description,
+          thumbnailURL: videos.thumbnailURL,
+          duration: videos.duration,
+          viewCount: videos.viewCount,
+          createdAt: videos.createdAt,
+          tags: videos.tags,
+          category: videos.category,
+          qualityScore: videos.qualityScore,
+          isNsfw: videos.isNsfw,
+          user: {
+            id: users.id,
+            name: users.name,
+            imageURL: users.imageURL,
+          },
+        })
+        .from(videos)
+        .innerJoin(users, eq(videos.userId, users.id))
+        .where(
+          and(
+            eq(videos.visibility, "public"),
+            or(...searchConditions.filter(Boolean))
+          )
+        )
+        .orderBy(desc(videos.viewCount))
+        .limit(input.limit);
+
+      return {
+        results,
+        expandedTerms,
+      };
+    }),
+
+  // Get content quality score for a video (on-demand)
+  getQualityScore: baseProcedure
+    .input(z.object({ videoId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const video = await ctx.db
+        .select({
+          title: videos.title,
+          description: videos.description,
+          transcript: videos.transcript,
+          tags: videos.tags,
+          duration: videos.duration,
+          qualityScore: videos.qualityScore,
+        })
+        .from(videos)
+        .where(eq(videos.id, input.videoId))
+        .limit(1);
+
+      if (!video[0]) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Video not found" });
+      }
+
+      // If already scored, return cached score
+      if (video[0].qualityScore !== null) {
+        return {
+          overall: video[0].qualityScore,
+          cached: true,
+        };
+      }
+
+      const quality = await scoreContentQuality(
+        video[0].title,
+        video[0].description,
+        video[0].transcript,
+        video[0].tags,
+        video[0].duration
+      );
+
+      // Cache the score
+      await ctx.db
+        .update(videos)
+        .set({ qualityScore: quality.overall })
+        .where(eq(videos.id, input.videoId));
+
+      return {
+        ...quality,
+        cached: false,
+      };
+    }),
+
+  // Extract keywords for a video (on-demand)
+  extractVideoKeywords: protectedProcedure
+    .input(z.object({ videoId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const video = await ctx.db
+        .select({
+          title: videos.title,
+          description: videos.description,
+          transcript: videos.transcript,
+          userId: videos.userId,
+          keywords: videos.keywords,
+        })
+        .from(videos)
+        .where(eq(videos.id, input.videoId))
+        .limit(1);
+
+      if (!video[0]) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      if (video[0].userId !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      // If already has keywords, return them
+      if (video[0].keywords && video[0].keywords.length > 0) {
+        return { keywords: video[0].keywords };
+      }
+
+      const keywords = await extractKeywords(
+        video[0].title,
+        video[0].description,
+        video[0].transcript
+      );
+
+      if (keywords.length > 0) {
+        await ctx.db
+          .update(videos)
+          .set({ keywords })
+          .where(eq(videos.id, input.videoId));
+      }
+
+      return { keywords };
     }),
 });

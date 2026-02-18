@@ -31,6 +31,16 @@ import {
   MessageSquareText,
   Captions,
   Loader2,
+  Heart,
+  Angry,
+  Laugh,
+  Zap,
+  AlertCircle,
+  Globe,
+  Key,
+  BarChart3,
+  Wand2,
+  Bot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -96,8 +106,32 @@ function SentimentBadge({
   );
 }
 
+function EmotionBadge({ emotion }: { emotion: string | null }) {
+  if (!emotion || emotion === "neutral") return null;
+  const emotionConfig: Record<string, { icon: typeof Heart; label: string; className: string }> = {
+    joy: { icon: Laugh, label: "Joy", className: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20" },
+    anger: { icon: Angry, label: "Anger", className: "bg-red-500/10 text-red-600 border-red-500/20" },
+    sadness: { icon: Frown, label: "Sad", className: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
+    surprise: { icon: Zap, label: "Surprise", className: "bg-purple-500/10 text-purple-600 border-purple-500/20" },
+    fear: { icon: AlertCircle, label: "Fear", className: "bg-orange-500/10 text-orange-600 border-orange-500/20" },
+    disgust: { icon: Frown, label: "Disgust", className: "bg-green-500/10 text-green-600 border-green-500/20" },
+    love: { icon: Heart, label: "Love", className: "bg-pink-500/10 text-pink-600 border-pink-500/20" },
+  };
+  const c = emotionConfig[emotion];
+  if (!c) return null;
+  const Icon = c.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border ${c.className}`}>
+      <Icon className="h-3 w-3" />
+      {c.label}
+    </span>
+  );
+}
+
 function CommentSection({ videoId }: { videoId: string }) {
   const [content, setContent] = useState("");
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replySuggestions, setReplySuggestions] = useState<string[]>([]);
   const utils = trpc.useUtils();
 
   const { data: comments, isLoading } = trpc.comments.getByVideo.useQuery({
@@ -193,6 +227,13 @@ function CommentSection({ videoId }: { videoId: string }) {
                     })}
                   </span>
                   <SentimentBadge sentiment={comment.sentiment} />
+                  <EmotionBadge emotion={comment.emotion ?? null} />
+                  {comment.isSpam && (
+                    <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border bg-amber-500/10 text-amber-600 border-amber-500/20">
+                      <Bot className="h-3 w-3" />
+                      Spam
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-foreground/90 leading-relaxed">
                   {comment.content}
@@ -202,10 +243,57 @@ function CommentSection({ videoId }: { videoId: string }) {
                     <ThumbsUp className="h-3 w-3" />
                     {comment.likeCount > 0 ? comment.likeCount : ""}
                   </button>
-                  <button className="text-[10px] text-muted-foreground hover:text-foreground">
+                  <button
+                    className="text-[10px] text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      if (replyingTo === comment.id) {
+                        setReplyingTo(null);
+                        setReplySuggestions([]);
+                      } else {
+                        setReplyingTo(comment.id);
+                        setReplySuggestions([]);
+                      }
+                    }}
+                  >
                     Reply
                   </button>
+                  <button
+                    className="text-[10px] text-muted-foreground hover:text-primary flex items-center gap-1"
+                    onClick={async () => {
+                      setReplyingTo(comment.id);
+                      setReplySuggestions([]);
+                      try {
+                        const result = await utils.client.comments.getReplySuggestions.query({
+                          commentId: comment.id,
+                          videoId,
+                        });
+                        setReplySuggestions(result.suggestions);
+                      } catch {
+                        setReplySuggestions([]);
+                      }
+                    }}
+                  >
+                    <Wand2 className="h-3 w-3" />
+                    AI Reply
+                  </button>
                 </div>
+                {replyingTo === comment.id && replySuggestions.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {replySuggestions.map((suggestion, i) => (
+                      <button
+                        key={i}
+                        className="text-[11px] px-2.5 py-1 rounded-lg bg-primary/5 text-primary/80 border border-primary/10 hover:bg-primary/10 transition-colors"
+                        onClick={() => {
+                          setContent(suggestion);
+                          setReplyingTo(null);
+                          setReplySuggestions([]);
+                        }}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -478,6 +566,47 @@ export default function VideoPage() {
               ))}
             </div>
           )}
+
+          {/* ML Metadata Row: Language, Keywords, Quality */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Language */}
+            {video.languageName && (
+              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border bg-blue-500/5 text-blue-600 border-blue-500/15">
+                <Globe className="h-3 w-3" />
+                {video.languageName}
+              </span>
+            )}
+
+            {/* Quality Score */}
+            {video.qualityScore !== null && video.qualityScore !== undefined && (
+              <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border ${
+                video.qualityScore >= 70
+                  ? "bg-emerald-500/5 text-emerald-600 border-emerald-500/15"
+                  : video.qualityScore >= 40
+                    ? "bg-yellow-500/5 text-yellow-600 border-yellow-500/15"
+                    : "bg-red-500/5 text-red-600 border-red-500/15"
+              }`}>
+                <BarChart3 className="h-3 w-3" />
+                Quality: {video.qualityScore}/100
+              </span>
+            )}
+
+            {/* Keywords */}
+            {video.keywords && video.keywords.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1">
+                <Key className="h-3 w-3 text-muted-foreground/60" />
+                {video.keywords.slice(0, 6).map((kw) => (
+                  <Badge
+                    key={kw}
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 rounded bg-muted/30 text-muted-foreground border-border/50"
+                  >
+                    {kw}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Stats and Actions */}
           <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-border">

@@ -134,9 +134,22 @@ function VideoCardSkeleton() {
 }
 
 function WatchHistoryTab() {
-  const { data, isLoading, error } = trpc.videos.getWatchHistory.useQuery({
+  const { data: rawData, isLoading, error } = trpc.history.getMyHistory.useQuery({
     limit: 20,
   });
+
+  // Transform the nested history data to match VideoCard props
+  const data = rawData?.map((item) => ({
+    id: item.video.id,
+    title: item.video.title,
+    description: null as string | null,
+    thumbnailURL: item.video.thumbnailURL,
+    duration: item.video.duration,
+    viewCount: item.video.viewCount,
+    createdAt: String(item.video.createdAt),
+    watchedAt: String(item.watchedAt),
+    user: item.user,
+  }));
 
   if (isLoading) {
     return (
@@ -160,7 +173,7 @@ function WatchHistoryTab() {
     );
   }
 
-  if (!data?.items.length) {
+  if (!data?.length) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-center">
         <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -176,7 +189,7 @@ function WatchHistoryTab() {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-10">
-      {data.items.map((video) => (
+      {data.map((video) => (
         <VideoCard key={video.id} video={video} type="history" />
       ))}
     </div>

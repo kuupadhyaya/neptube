@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq, desc, and, isNull, sql } from "drizzle-orm";
 import { baseProcedure, createTRPCRouter, protectedProcedure } from "../init";
 import { comments, users, videos, notifications } from "@/db/schema";
-import { analyzeSentiment, analyzeToxicity } from "@/lib/ai";
+import { analyzeSentiment, analyzeToxicity, detectSpam, detectEmotion, generateReplySuggestions } from "@/lib/ai";
 import { rateLimit, COMMENT_RATE_LIMIT } from "@/lib/rate-limit";
 import { TRPCError } from "@trpc/server";
 
@@ -27,6 +27,9 @@ export const commentsRouter = createTRPCRouter({
           sentiment: comments.sentiment,
           sentimentScore: comments.sentimentScore,
           isToxic: comments.isToxic,
+          isSpam: comments.isSpam,
+          emotion: comments.emotion,
+          emotionConfidence: comments.emotionConfidence,
           isHidden: comments.isHidden,
           user: {
             id: users.id,
@@ -98,11 +101,15 @@ export const commentsRouter = createTRPCRouter({
         });
       }
 
-      // Run sentiment and toxicity analysis in parallel
-      const [sentimentResult, toxicityResult] = await Promise.all([
+      // Run sentiment, toxicity, spam, and emotion analysis in parallel
+      const [sentimentResult, toxicityResult, spamResult, emotionResult] = await Promise.all([
         analyzeSentiment(input.content),
         analyzeToxicity(input.content),
+        detectSpam(input.content),
+        detectEmotion(input.content),
       ]);
+
+      const shouldHide = toxicityResult.isToxic || spamResult.isSpam;
 
       const newComment = await ctx.db
         .insert(comments)
@@ -116,7 +123,11 @@ export const commentsRouter = createTRPCRouter({
           sentimentScore: sentimentResult.score,
           isToxic: toxicityResult.isToxic,
           toxicityScore: toxicityResult.score,
-          isHidden: toxicityResult.isToxic, // Auto-hide toxic comments
+          isSpam: spamResult.isSpam,
+          spamScore: spamResult.score,
+          emotion: emotionResult.emotion,
+          emotionConfidence: emotionResult.confidence,
+          isHidden: shouldHide, // Auto-hide toxic or spam comments
         })
         .returning();
 
@@ -220,5 +231,38 @@ export const commentsRouter = createTRPCRouter({
         .where(eq(comments.id, input.id));
 
       return { success: true };
+    }),
+
+  // Get AI reply suggestions for a comment
+  getReplySuggestions: protectedProcedure
+    .input(
+      z.object({
+        commentId: z.string().uuid(),
+        videoId: z.string().uuid(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const comment = await ctx.db
+        .select({ content: comments.content })
+        .from(comments)
+        .where(eq(comments.id, input.commentId))
+        .limit(1);
+
+      const video = await ctx.db
+        .select({ title: videos.title })
+        .from(videos)
+        .where(eq(videos.id, input.videoId))
+        .limit(1);
+
+      if (!comment[0] || !video[0]) {
+        return { suggestions: [] };
+      }
+
+      const suggestions = await generateReplySuggestions(
+        comment[0].content,
+        video[0].title
+      );
+
+      return { suggestions };
     }),
 });

@@ -1,15 +1,16 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useCallback } from "react";
+import { Suspense, useEffect, useRef, useCallback, useState } from "react";
 import { trpc } from "@/trpc/client";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
-import { Eye, Upload, Search, Loader2 } from "lucide-react";
+import { Eye, Upload, Search, Loader2, Sparkles, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@clerk/nextjs";
 
 function formatViewCount(count: number): string {
   if (count >= 1000000) {
@@ -137,6 +138,8 @@ function VideoCardSkeleton() {
 function FeedPage() {
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get("q") || "";
+  const [feedMode, setFeedMode] = useState<"explore" | "foryou">("explore");
+  const { isSignedIn } = useAuth();
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
@@ -144,7 +147,14 @@ function FeedPage() {
       { limit: 20, search: searchQuery || undefined },
       {
         getNextPageParam: (lastPage) => lastPage.nextCursor,
+        enabled: feedMode === "explore",
       }
+    );
+
+  const { data: personalizedData, isLoading: isPersonalizedLoading } =
+    trpc.videos.getPersonalizedFeed.useQuery(
+      { limit: 30 },
+      { enabled: feedMode === "foryou" && !!isSignedIn && !searchQuery }
     );
 
   // Intersection observer for infinite scroll
@@ -185,15 +195,81 @@ function FeedPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">
           {searchQuery ? (
-            <>Results for <span className="gradient-text">"{searchQuery}"</span></>
+            <>Results for <span className="gradient-text">&quot;{searchQuery}&quot;</span></>
           ) : (
-            <span className="gradient-text">Explore</span>
+            <span className="gradient-text">
+              {feedMode === "foryou" ? "For You" : "Explore"}
+            </span>
           )}
         </h1>
+
+        {/* Feed Mode Tabs */}
+        {!searchQuery && isSignedIn && (
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              onClick={() => setFeedMode("explore")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                feedMode === "explore"
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "bg-muted/50 text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              <TrendingUp className="h-3.5 w-3.5" />
+              Explore
+            </button>
+            <button
+              onClick={() => setFeedMode("foryou")}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                feedMode === "foryou"
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "bg-muted/50 text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              For You
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Video Grid */}
-      {isLoading ? (
+      {/* Personalized Feed */}
+      {feedMode === "foryou" && !searchQuery && isSignedIn ? (
+        isPersonalizedLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
+            {[...Array(8)].map((_, i) => (
+              <VideoCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : personalizedData && personalizedData.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
+            {personalizedData.map((video) => (
+              <div key={video.id} className="card-animate">
+                <VideoCard video={video} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center min-h-[40vh] text-center">
+            <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+              <Sparkles className="h-10 w-10 text-primary/60" />
+            </div>
+            <h2 className="text-lg font-semibold mb-1">No personalized suggestions yet</h2>
+            <p className="text-muted-foreground text-sm mb-4 max-w-sm">
+              Watch some videos first so we can learn your preferences!
+            </p>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => setFeedMode("explore")}
+            >
+              <TrendingUp className="h-4 w-4" />
+              Browse Explore
+            </Button>
+          </div>
+        )
+      ) : (
+      /* Regular Feed */
+      isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
           {[...Array(8)].map((_, i) => (
             <VideoCardSkeleton key={i} />
@@ -242,7 +318,7 @@ function FeedPage() {
             )}
           </div>
         </>
-      )}
+      ))}
     </div>
   );
 }
