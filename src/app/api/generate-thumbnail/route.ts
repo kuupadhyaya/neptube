@@ -4,6 +4,51 @@ import { UTApi } from "uploadthing/server";
 
 const utapi = new UTApi();
 
+/** Build progressively simpler prompts so retries have a better chance.
+ *  Avoids words like "thumbnail", "video", "youtube" which Pollinations
+ *  frequently rejects with 530 errors. */
+function buildPrompts(title: string): string[] {
+  // Strip non-alphanumeric chars and take first few words from the title
+  const keywords = title
+    .replace(/[^a-zA-Z0-9 ]/g, "")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 5)
+    .join(" ");
+  return [
+    // Attempt 1 – descriptive, based on the title
+    `professional digital artwork ${keywords} vibrant cinematic lighting`,
+    // Attempt 2 – shorter
+    `colorful illustration ${keywords}`,
+    // Attempt 3 – generic eye-catching image
+    `beautiful cinematic landscape colorful`,
+    // Attempt 4 – single safe word
+    `landscape`,
+  ];
+}
+
+/** Fetch an image from Pollinations with a timeout + single retry per prompt. */
+async function fetchFromPollinations(prompt: string): Promise<Blob | null> {
+  const encoded = encodeURIComponent(prompt);
+  // Avoid query params (seed, width, height, nologo) – they often cause 530 errors
+  const url = `https://image.pollinations.ai/prompt/${encoded}`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    // Sanity-check: a valid image should be > 1 KB
+    return blob.size > 1024 ? blob : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Check authentication
@@ -11,7 +56,7 @@ export async function POST(request: NextRequest) {
     if (!userId) {
       return NextResponse.json(
         { error: "You must be logged in to generate thumbnails" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -20,40 +65,38 @@ export async function POST(request: NextRequest) {
     if (!title) {
       return NextResponse.json(
         { error: "Title is required to generate a thumbnail" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Create a prompt for YouTube-style thumbnail
-    const prompt = `A professional YouTube video thumbnail for a video titled "${title}". ${description ? `The video is about: ${description}.` : ""} High quality, eye-catching, vibrant colors, professional design, cinematic lighting, 4K quality, no text`;
+    const prompts = buildPrompts(title);
 
-    console.log("Generating thumbnail with prompt:", prompt);
+    let imageBlob: Blob | null = null;
 
-    // Use Pollinations AI - completely FREE, no API key needed!
-    const encodedPrompt = encodeURIComponent(prompt);
-    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1280&height=720&nologo=true&seed=${Date.now()}`;
-
-    console.log("Fetching image from Pollinations...");
-
-    // Download the image from Pollinations
-    const imageResponse = await fetch(pollinationsUrl);
-    
-    if (!imageResponse.ok) {
-      throw new Error("Failed to generate image from Pollinations AI");
+    for (const prompt of prompts) {
+      console.log("Trying Pollinations prompt:", prompt);
+      imageBlob = await fetchFromPollinations(prompt);
+      if (imageBlob) break;
+      console.log("Prompt failed, trying next fallback…");
     }
 
-    // Get the image as a blob
-    const imageBlob = await imageResponse.blob();
-    
-    // Create a File object for UploadThing
-    const fileName = `thumbnail-${Date.now()}.png`;
-    const file = new File([imageBlob], fileName, { type: "image/png" });
+    if (!imageBlob) {
+      throw new Error(
+        "All Pollinations attempts failed – the service may be temporarily unavailable",
+      );
+    }
+
+    // Pollinations returns JPEG images
+    const ext = imageBlob.type?.includes("png") ? "png" : "jpg";
+    const mimeType = ext === "png" ? "image/png" : "image/jpeg";
+    const fileName = `thumbnail-${Date.now()}.${ext}`;
+    const file = new File([imageBlob], fileName, { type: mimeType });
 
     console.log("Uploading thumbnail to UploadThing...");
 
     // Upload to UploadThing
     const uploadResponse = await utapi.uploadFiles([file]);
-    
+
     if (!uploadResponse[0]?.data?.ufsUrl) {
       throw new Error("Failed to upload thumbnail to storage");
     }
@@ -62,14 +105,14 @@ export async function POST(request: NextRequest) {
     console.log("Thumbnail uploaded successfully:", thumbnailUrl);
 
     return NextResponse.json({
-      thumbnailUrl: thumbnailUrl,
+      thumbnailUrl,
       success: true,
     });
   } catch (error) {
     console.error("Error generating thumbnail:", error);
     return NextResponse.json(
       { error: "Failed to generate thumbnail. Please try again." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
