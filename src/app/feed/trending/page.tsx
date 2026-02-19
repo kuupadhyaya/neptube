@@ -136,9 +136,9 @@ function TrendingFeed() {
               </p>
               {video.tags && video.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1.5">
-                  {video.tags.slice(0, 3).map((tag) => (
+                  {video.tags.slice(0, 3).map((tag, index) => (
                     <Badge
-                      key={tag}
+                      key={`${tag}-${index}`}
                       variant="secondary"
                       className="text-[10px] px-1.5 py-0 rounded"
                     >

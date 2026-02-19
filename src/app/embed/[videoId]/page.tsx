@@ -29,12 +29,12 @@ export default function EmbedPage() {
   }
 
   return (
-    <div className="w-full h-screen bg-black">
+    <div className="w-full h-screen bg-black flex items-center justify-center">
       <video
         src={video.videoURL}
         controls
         autoPlay
-        className="w-full h-full"
+        className="w-full h-full object-contain"
         poster={video.thumbnailURL || undefined}
       />
     </div>

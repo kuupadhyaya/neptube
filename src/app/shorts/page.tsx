@@ -217,15 +217,21 @@ export default function ShortsPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch short videos (duration < 60s or flagged as short)
-  const { data: shorts, isLoading } = trpc.videos.getFeed.useInfiniteQuery(
+  // Fetch short videos using the dedicated shorts endpoint
+  const { data: shorts, isLoading } = trpc.videos.getShorts.useInfiniteQuery(
     { limit: 20 },
     { getNextPageParam: (lastPage) => lastPage.nextCursor }
   );
 
-  const allVideos = (shorts?.pages.flatMap((page) => page.items) ?? []).filter(
-    (v) => v.id // Show all videos in short format for now
-  ) as unknown as ShortVideo[];
+  const allVideos = (() => {
+    const flat = shorts?.pages.flatMap((page) => page.items) ?? [];
+    const seen = new Set<string>();
+    return flat.filter((v) => {
+      if (!v.id || seen.has(v.id)) return false;
+      seen.add(v.id);
+      return true;
+    });
+  })() as unknown as ShortVideo[];
 
   const goUp = useCallback(() => {
     setCurrentIndex((prev) => Math.max(0, prev - 1));

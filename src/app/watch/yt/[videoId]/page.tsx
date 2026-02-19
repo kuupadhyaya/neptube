@@ -218,9 +218,9 @@ export default function YouTubeWatchPage() {
             {/* Tags */}
             {video.tags && video.tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                {video.tags.map((tag) => (
+                {video.tags.map((tag, index) => (
                   <Badge
-                    key={tag}
+                    key={`${tag}-${index}`}
                     variant="secondary"
                     className="text-xs rounded bg-red-500/5 text-red-500/70 border border-red-500/10 cursor-pointer hover:bg-red-500/10"
                   >

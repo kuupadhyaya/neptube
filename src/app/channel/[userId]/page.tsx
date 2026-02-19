@@ -144,43 +144,39 @@ export default function ChannelPage() {
             This channel has no videos yet.
           </p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-x-4 gap-y-6">
             {channel.videos.map((video, i) => (
               <Link key={video.id} href={`/feed/${video.id}`} className="group card-animate" style={{ animationDelay: `${i * 0.04}s` }}>
-                <div className="glass-card gradient-border rounded-xl overflow-hidden">
-                  <div className="relative aspect-video bg-muted overflow-hidden thumbnail-hover">
-                    {video.thumbnailURL ? (
-                      <Image
-                        src={video.thumbnailURL}
-                        alt={video.title}
-                        fill
-                        className="object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
-                        <span className="text-primary font-bold text-xl">
-                          {video.title[0]?.toUpperCase()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-3">
-                    <h3 className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors">
-                      {video.title}
-                    </h3>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                      <span className="flex items-center gap-1">
-                        <Eye className="h-3 w-3" />
-                        {formatViewCount(video.viewCount)} views
-                      </span>
-                      <span>·</span>
-                      <span>
-                        {formatDistanceToNow(new Date(video.createdAt), {
-                          addSuffix: true,
-                        })}
+                <div className="relative aspect-video bg-muted rounded-lg overflow-hidden mb-2">
+                  {video.thumbnailURL ? (
+                    <Image
+                      src={video.thumbnailURL}
+                      alt={video.title}
+                      fill
+                      className="object-cover group-hover:scale-[1.03] transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-muted">
+                      <span className="text-muted-foreground font-bold text-lg">
+                        {video.title[0]?.toUpperCase()}
                       </span>
                     </div>
-                  </div>
+                  )}
+                </div>
+                <h3 className="text-[13px] font-medium line-clamp-2 leading-snug group-hover:text-primary transition-colors">
+                  {video.title}
+                </h3>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                  <span className="flex items-center gap-0.5">
+                    <Eye className="h-3 w-3" />
+                    {formatViewCount(video.viewCount)} views
+                  </span>
+                  <span>·</span>
+                  <span>
+                    {formatDistanceToNow(new Date(video.createdAt), {
+                      addSuffix: true,
+                    })}
+                  </span>
                 </div>
               </Link>
             ))}

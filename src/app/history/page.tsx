@@ -59,13 +59,13 @@ function VideoCard({ video, type }: {
     <Link href={`/feed/${video.id}`}>
       <div className="group cursor-pointer card-animate">
         {/* Thumbnail */}
-        <div className="relative aspect-video rounded-xl overflow-hidden bg-muted mb-3 glass-card gradient-border thumbnail-hover">
+        <div className="relative aspect-video rounded-lg overflow-hidden bg-muted mb-2">
           {video.thumbnailURL ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={video.thumbnailURL}
               alt={video.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
@@ -73,42 +73,39 @@ function VideoCard({ video, type }: {
             </div>
           )}
           {video.duration && video.duration > 0 && (
-            <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded z-10">
+            <div className="absolute bottom-1.5 right-1.5 bg-black/80 text-white text-[10px] font-medium px-1.5 py-0.5 rounded z-10">
               {formatDuration(video.duration)}
             </div>
           )}
         </div>
 
         {/* Video Info */}
-        <div className="space-y-3">
-          {/* Title */}
-          <h3 className="font-semibold text-sm leading-tight line-clamp-2 group-hover:text-primary transition-colors">
-            {video.title}
-          </h3>
-
-          {/* Channel Info */}
-          <div className="flex items-center gap-2">
-            <Avatar className="h-6 w-6">
-              <AvatarImage src={video.user.imageURL} alt={video.user.name} />
-              <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                {video.user.name.charAt(0).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <p className="text-xs text-muted-foreground hover:text-foreground">
+        <div className="flex gap-2">
+          <Avatar className="h-8 w-8 flex-shrink-0">
+            <AvatarImage src={video.user.imageURL} alt={video.user.name} />
+            <AvatarFallback className="text-xs bg-primary/10 text-primary">
+              {video.user.name.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-medium text-[13px] leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+              {video.title}
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
               {video.user.name}
             </p>
-          </div>
-
-          {/* Views and Action Date */}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{formatViewCount(video.viewCount)} views</span>
-            <span>•</span>
-            {actionDate && (
-              <span className="flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                Watched {formatTimeAgo(actionDate)}
-              </span>
-            )}
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <span>{formatViewCount(video.viewCount)} views</span>
+              {actionDate && (
+                <>
+                  <span>·</span>
+                  <span className="flex items-center gap-0.5">
+                    <Clock className="h-3 w-3" />
+                    {formatTimeAgo(actionDate)}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -118,16 +115,15 @@ function VideoCard({ video, type }: {
 
 function VideoCardSkeleton() {
   return (
-    <div className="space-y-3">
-      <Skeleton className="aspect-video rounded-xl" />
-      <div className="space-y-2">
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-3/4" />
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-6 w-6 rounded-full" />
-          <Skeleton className="h-3 w-24" />
+    <div>
+      <Skeleton className="aspect-video rounded-lg mb-2" />
+      <div className="flex gap-2">
+        <Skeleton className="w-8 h-8 rounded-full flex-shrink-0" />
+        <div className="flex-1 space-y-1.5">
+          <Skeleton className="h-3.5 w-full" />
+          <Skeleton className="h-3.5 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
         </div>
-        <Skeleton className="h-3 w-32" />
       </div>
     </div>
   );
@@ -153,7 +149,7 @@ function WatchHistoryTab() {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-10">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-x-4 gap-y-6">
         {[...Array(9)].map((_, i) => (
           <VideoCardSkeleton key={i} />
         ))}
@@ -188,7 +184,7 @@ function WatchHistoryTab() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-10">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-x-4 gap-y-6">
       {data.map((video) => (
         <VideoCard key={video.id} video={video} type="history" />
       ))}

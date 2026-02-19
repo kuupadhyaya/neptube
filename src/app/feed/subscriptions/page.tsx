@@ -68,65 +68,61 @@ function SubscriptionsFeed() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-x-4 gap-y-6">
         {data.items.map((video) => (
           <Link key={video.id} href={`/feed/${video.id}`} className="group">
-            <div className="glass-card gradient-border rounded-xl overflow-hidden">
-              <div className="relative aspect-video bg-muted overflow-hidden thumbnail-hover">
-                {video.isNsfw && (
-                  <div className="absolute inset-0 z-10 bg-black/80 backdrop-blur-xl flex items-center justify-center">
-                    <span className="text-red-400 text-xs font-medium">NSFW</span>
-                  </div>
-                )}
-                {video.thumbnailURL ? (
-                  <Image
-                    src={video.thumbnailURL}
-                    alt={video.title}
-                    fill
-                    className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
-                    <span className="text-primary text-3xl font-bold">
-                      {video.title[0]?.toUpperCase()}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="p-3.5">
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 mt-0.5">
-                    <div className="w-8 h-8 rounded-lg overflow-hidden bg-muted">
-                      {video.user.imageURL ? (
-                        <Image
-                          src={video.user.imageURL}
-                          alt={video.user.name}
-                          width={32}
-                          height={32}
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary text-xs font-semibold">
-                          {video.user.name[0]?.toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-sm line-clamp-2 group-hover:text-primary transition-colors">
-                      {video.title}
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-1.5">
-                      {video.user.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatViewCount(video.viewCount)} ·{" "}
-                      {formatDistanceToNow(new Date(video.createdAt), {
-                        addSuffix: true,
-                      })}
-                    </p>
-                  </div>
+            <div className="relative aspect-video bg-muted rounded-lg overflow-hidden mb-2">
+              {video.isNsfw && (
+                <div className="absolute inset-0 z-10 bg-black/80 backdrop-blur-xl flex items-center justify-center">
+                  <span className="text-red-400 text-[10px] font-medium">NSFW</span>
                 </div>
+              )}
+              {video.thumbnailURL ? (
+                <Image
+                  src={video.thumbnailURL}
+                  alt={video.title}
+                  fill
+                  className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-muted">
+                  <span className="text-muted-foreground text-lg font-bold">
+                    {video.title[0]?.toUpperCase()}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-muted">
+                  {video.user.imageURL ? (
+                    <Image
+                      src={video.user.imageURL}
+                      alt={video.user.name}
+                      width={32}
+                      height={32}
+                      className="object-cover w-full h-full"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary text-xs font-semibold">
+                      {video.user.name[0]?.toUpperCase()}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium text-[13px] line-clamp-2 leading-snug group-hover:text-primary transition-colors">
+                  {video.title}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                  {video.user.name}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {formatViewCount(video.viewCount)} ·{" "}
+                  {formatDistanceToNow(new Date(video.createdAt), {
+                    addSuffix: true,
+                  })}
+                </p>
               </div>
             </div>
           </Link>

@@ -342,12 +342,14 @@ export default function EditVideoPage() {
                 </CardHeader>
                 <CardContent>
                   {video.videoURL ? (
-                    <video
-                      src={video.videoURL}
-                      controls
-                      className="w-full rounded-lg"
-                      poster={thumbnailUrl || undefined}
-                    />
+                    <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                      <video
+                        src={video.videoURL}
+                        controls
+                        className="w-full h-full object-contain"
+                        poster={thumbnailUrl || undefined}
+                      />
+                    </div>
                   ) : (
                     <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
                       <p className="text-gray-500">No video</p>
@@ -397,8 +399,8 @@ export default function EditVideoPage() {
                     </p>
                     {video.tags && video.tags.length > 0 ? (
                       <div className="flex flex-wrap gap-1.5">
-                        {video.tags.map((tag) => (
-                          <Badge key={tag} variant="secondary" className="text-xs">
+                        {video.tags.map((tag, index) => (
+                          <Badge key={`${tag}-${index}`} variant="secondary" className="text-xs">
                             {tag}
                           </Badge>
                         ))}

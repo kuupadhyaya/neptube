@@ -361,11 +361,13 @@ export default function UploadVideoPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      <video
-                        src={videoUrl}
-                        controls
-                        className="w-full rounded-lg bg-black"
-                      />
+                      <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                        <video
+                          src={videoUrl}
+                          controls
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
                       <p className="font-medium text-sm truncate">
                         {title || "Untitled Video"}
                       </p>

@@ -6,10 +6,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
-import { Eye, Upload, Search, Loader2, Sparkles, TrendingUp, ExternalLink } from "lucide-react";
+import { Eye, Upload, Search, Loader2, Sparkles, TrendingUp, ExternalLink, Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@clerk/nextjs";
 import { YouTubeVideoCard, YouTubeVideoCardSkeleton } from "@/components/youtube-video-card";
 
@@ -38,80 +37,62 @@ function VideoCard({ video }: { video: {
 }}) {
   return (
     <Link href={`/feed/${video.id}`} className="group">
-      <div className="glass-card gradient-border rounded-xl overflow-hidden">
-        {/* Thumbnail */}
-        <div className="relative aspect-video bg-muted overflow-hidden thumbnail-hover">
-          {video.isNsfw && (
-            <div className="absolute inset-0 z-10 bg-black/80 backdrop-blur-xl flex items-center justify-center">
-              <span className="text-red-400 text-xs font-medium">NSFW</span>
-            </div>
-          )}
-          {video.thumbnailURL ? (
-            <Image
-              src={video.thumbnailURL}
-              alt={video.title}
-              fill
-              className="object-cover transition-transform duration-500 group-hover:scale-[1.05]"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
-              <span className="text-primary text-3xl font-bold">
-                {video.title[0]?.toUpperCase()}
-              </span>
-            </div>
-          )}
-        </div>
-        
-        {/* Info */}
-        <div className="p-3.5">
-          <div className="flex gap-3">
-            {/* Channel avatar */}
-            <div className="flex-shrink-0 mt-0.5">
-              <div className="w-8 h-8 rounded-lg overflow-hidden bg-muted">
-                {video.user.imageURL ? (
-                  <Image
-                    src={video.user.imageURL}
-                    alt={video.user.name}
-                    width={32}
-                    height={32}
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary text-xs font-semibold">
-                    {video.user.name[0]?.toUpperCase()}
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Title and meta */}
-            <div className="flex-1 min-w-0">
-              <h3 className="font-medium text-sm line-clamp-2 group-hover:text-primary transition-colors">
-                {video.title}
-              </h3>
-              <p className="text-xs text-muted-foreground mt-1.5">{video.user.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {formatViewCount(video.viewCount)} · {formatDistanceToNow(new Date(video.createdAt), { addSuffix: true })}
-              </p>
-              {/* Tags */}
-              {video.tags && video.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {video.tags.slice(0, 3).map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant="secondary"
-                      className="text-[10px] px-1.5 py-0 rounded bg-primary/5 text-primary/70 border border-primary/10"
-                    >
-                      {tag}
-                    </Badge>
-                  ))}
-                  {video.tags.length > 3 && (
-                    <span className="text-[10px] text-muted-foreground">+{video.tags.length - 3}</span>
-                  )}
-                </div>
-              )}
-            </div>
+      {/* Thumbnail — locked to 16:9 */}
+      <div className="relative w-full rounded-xl overflow-hidden mb-3" style={{ aspectRatio: '16/9' }}>
+        {video.isNsfw && (
+          <div className="absolute inset-0 z-10 bg-black/80 backdrop-blur-xl flex items-center justify-center">
+            <span className="text-red-400 text-[10px] font-medium">NSFW</span>
           </div>
+        )}
+        {video.thumbnailURL ? (
+          <Image
+            src={video.thumbnailURL}
+            alt={video.title}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-muted">
+            <span className="text-muted-foreground text-lg font-bold">
+              {video.title[0]?.toUpperCase()}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Info — YouTube style: avatar left, text right */}
+      <div className="flex gap-2">
+        {/* Circular channel avatar */}
+        <div className="flex-shrink-0">
+          <div className="w-8 h-8 rounded-full overflow-hidden bg-muted">
+            {video.user.imageURL ? (
+              <Image
+                src={video.user.imageURL}
+                alt={video.user.name}
+                width={32}
+                height={32}
+                className="object-cover w-full h-full"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-primary/10 text-primary text-xs font-semibold">
+                {video.user.name[0]?.toUpperCase()}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Title and meta */}
+        <div className="flex-1 min-w-0">
+          <h3 className="font-medium text-[13px] line-clamp-2 leading-snug group-hover:text-primary transition-colors">
+            {video.title}
+          </h3>
+          <p className="text-xs text-muted-foreground mt-0.5 hover:text-foreground transition-colors truncate">
+            {video.user.name}
+          </p>
+          <p className="text-xs text-muted-foreground leading-tight">
+            {formatViewCount(video.viewCount)} · {formatDistanceToNow(new Date(video.createdAt), { addSuffix: true })}
+          </p>
         </div>
       </div>
     </Link>
@@ -120,19 +101,113 @@ function VideoCard({ video }: { video: {
 
 function VideoCardSkeleton() {
   return (
-    <div className="glass-card rounded-xl overflow-hidden">
-      <Skeleton className="aspect-video" />
-      <div className="p-3.5">
-        <div className="flex gap-3">
-          <Skeleton className="w-8 h-8 rounded-lg flex-shrink-0" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-3 w-32" />
-          </div>
+    <div>
+      <div className="w-full rounded-xl mb-3" style={{ aspectRatio: '16/9' }}>
+        <Skeleton className="w-full h-full rounded-xl" />
+      </div>
+      <div className="flex gap-3">
+        <Skeleton className="w-9 h-9 rounded-full flex-shrink-0" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-3.5 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
         </div>
       </div>
     </div>
+  );
+}
+
+function ShortsRow({ shorts }: { shorts: { id: string; title: string; thumbnailURL: string | null; viewCount: number; duration: number | null; user: { name: string } }[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener("scroll", checkScroll);
+    return () => el.removeEventListener("scroll", checkScroll);
+  }, [checkScroll, shorts.length]);
+
+  const scroll = (dir: "left" | "right") => {
+    scrollRef.current?.scrollBy({ left: dir === "left" ? -400 : 400, behavior: "smooth" });
+  };
+
+  if (shorts.length === 0) return null;
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <Link href="/shorts" className="flex items-center gap-2 group">
+          <div className="w-7 h-7 bg-red-500 rounded-lg flex items-center justify-center">
+            <Play className="h-3.5 w-3.5 text-white" fill="white" />
+          </div>
+          <h2 className="text-xl font-semibold group-hover:text-primary transition-colors">Shorts</h2>
+        </Link>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            {canScrollLeft && (
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => scroll("left")}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            )}
+            {canScrollRight && (
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => scroll("right")}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+          <Link href="/shorts">
+            <Button variant="outline" size="sm" className="text-xs rounded-full px-4">
+              View All
+            </Button>
+          </Link>
+        </div>
+      </div>
+      <div ref={scrollRef} className="flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth scrollbar-hide pb-2">
+        {shorts.map((video) => (
+          <Link
+            key={`short-${video.id}`}
+            href={`/shorts?v=${video.id}`}
+            className="w-[180px] flex-shrink-0 snap-start group"
+          >
+            {/* 9:16 portrait card */}
+            <div className="relative aspect-[9/16] rounded-xl overflow-hidden bg-muted">
+              {video.thumbnailURL ? (
+                <Image
+                  src={video.thumbnailURL}
+                  alt={video.title}
+                  fill
+                  sizes="180px"
+                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
+                  <Play className="h-8 w-8 text-primary/60" />
+                </div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+              <div className="absolute bottom-2 left-2 right-2">
+                <p className="text-white text-xs font-medium line-clamp-2 drop-shadow-lg">
+                  {video.title}
+                </p>
+                <p className="text-white/70 text-[10px] mt-0.5">
+                  {formatViewCount(video.viewCount)}
+                </p>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -158,6 +233,16 @@ function FeedPage() {
       { enabled: feedMode === "foryou" && !!isSignedIn && !searchQuery }
     );
 
+  // Fetch shorts separately for the shelf
+  const { data: shortsData } = trpc.videos.getShorts.useInfiniteQuery(
+    { limit: 12 },
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      enabled: feedMode === "explore" && !searchQuery,
+    }
+  );
+  const shortsVideos = shortsData?.pages.flatMap((p) => p.items) ?? [];
+
   // YouTube integration — fetch trending or search results
   const { data: ytConfigured } = trpc.youtube.isConfigured.useQuery();
   const { data: ytTrending, isLoading: ytTrendingLoading } = trpc.youtube.trending.useQuery(
@@ -171,26 +256,49 @@ function FeedPage() {
   const ytVideos = searchQuery ? (ytSearch?.videos ?? []) : (ytTrending?.videos ?? []);
   const ytLoading = searchQuery ? ytSearchLoading : ytTrendingLoading;
 
-  // Intersection observer for infinite scroll
-  const handleObserver = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      const target = entries[0];
-      if (target.isIntersecting && hasNextPage && !isFetchingNextPage) {
-        fetchNextPage();
+  const allVideos = (() => {
+    const flat = data?.pages.flatMap((page) => page.items) ?? [];
+    const seen = new Set<string>();
+    return flat.filter((v) => {
+      if (seen.has(v.id)) return false;
+      seen.add(v.id);
+      return true;
+    });
+  })();
+
+  // Infinite scroll — callback ref ensures observer attaches when div mounts
+  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  const loadMoreCallbackRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
       }
+      loadMoreRef.current = node;
+      if (!node) return;
+
+      observerRef.current = new IntersectionObserver(
+        (entries) => {
+          if (entries[0]?.isIntersecting) {
+            fetchNextPage();
+          }
+        },
+        { rootMargin: "400px" }
+      );
+      observerRef.current.observe(node);
     },
-    [fetchNextPage, hasNextPage, isFetchingNextPage]
+    [fetchNextPage]
   );
 
+  // Re-check when pagination state changes (covers edge case where sentinel is already visible)
   useEffect(() => {
-    const observer = new IntersectionObserver(handleObserver, {
-      rootMargin: "200px",
-    });
-    if (loadMoreRef.current) observer.observe(loadMoreRef.current);
-    return () => observer.disconnect();
-  }, [handleObserver]);
-
-  const allVideos = data?.pages.flatMap((page) => page.items) ?? [];
+    if (!loadMoreRef.current || !hasNextPage || isFetchingNextPage) return;
+    const rect = loadMoreRef.current.getBoundingClientRect();
+    if (rect.top < window.innerHeight + 400) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, allVideos.length]);
 
   if (error) {
     return (
@@ -204,7 +312,7 @@ function FeedPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="max-w-[1500px] mx-auto px-6 py-6">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">
@@ -249,13 +357,13 @@ function FeedPage() {
       {/* Personalized Feed */}
       {feedMode === "foryou" && !searchQuery && isSignedIn ? (
         isPersonalizedLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
             {[...Array(8)].map((_, i) => (
               <VideoCardSkeleton key={i} />
             ))}
           </div>
         ) : personalizedData && personalizedData.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
             {personalizedData.map((video) => (
               <div key={video.id} className="card-animate">
                 <VideoCard video={video} />
@@ -284,7 +392,7 @@ function FeedPage() {
       ) : (
       /* Regular Feed */
       isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
           {[...Array(8)].map((_, i) => (
             <VideoCardSkeleton key={i} />
           ))}
@@ -323,10 +431,10 @@ function FeedPage() {
                   <ExternalLink className="h-3.5 w-3.5 text-white" />
                 </div>
                 <h2 className="text-lg font-bold">
-                  {searchQuery ? "YouTube Results" : "Trending on YouTube"}
+                  {searchQuery ? "Neptube Video Results" : "Trending on Neptube"}
                 </h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
                 {ytVideos.map((video) => (
                   <div key={video.id} className="card-animate">
                     <YouTubeVideoCard video={video} />
@@ -338,19 +446,40 @@ function FeedPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
-            {allVideos.map((video) => (
+          {/* Video grid with Shorts shelf injected after first row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
+            {allVideos.slice(0, 4).map((video) => (
               <div key={video.id} className="card-animate">
                 <VideoCard video={video} />
               </div>
             ))}
           </div>
 
-          {/* Infinite scroll trigger */}
-          <div ref={loadMoreRef} className="flex justify-center py-8">
-            {isFetchingNextPage && (
+          {/* Shorts shelf — separate section between video rows */}
+          {!searchQuery && shortsVideos.length > 0 && (
+            <div className="mt-8 mb-8">
+              <ShortsRow shorts={shortsVideos} />
+            </div>
+          )}
+
+          {/* All remaining videos in a single continuous grid */}
+          {allVideos.length > 4 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
+              {allVideos.slice(4).map((video) => (
+                <div key={video.id} className="card-animate">
+                  <VideoCard video={video} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Infinite scroll trigger — always visible at bottom */}
+          <div ref={loadMoreCallbackRef} className="flex justify-center py-8">
+            {isFetchingNextPage ? (
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            )}
+            ) : hasNextPage ? (
+              <span className="text-xs text-muted-foreground">Loading more...</span>
+            ) : null}
           </div>
 
           {/* YouTube Section */}
@@ -363,14 +492,14 @@ function FeedPage() {
                   </div>
                   <h2 className="text-lg font-bold">
                     {searchQuery ? (
-                      <>YouTube results for <span className="text-red-500">&quot;{searchQuery}&quot;</span></>
+                      <>Neptube video results for <span className="text-red-500">&quot;{searchQuery}&quot;</span></>
                     ) : (
-                      <span>Trending on YouTube</span>
+                      <span>Trending on Neptube</span>
                     )}
                   </h2>
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
                 {ytVideos.map((video) => (
                   <div key={video.id} className="card-animate">
                     <YouTubeVideoCard video={video} />
@@ -385,9 +514,9 @@ function FeedPage() {
                 <div className="w-7 h-7 bg-red-600 rounded-lg flex items-center justify-center">
                   <ExternalLink className="h-3.5 w-3.5 text-white" />
                 </div>
-                <h2 className="text-lg font-bold">Trending on YouTube</h2>
+                <h2 className="text-lg font-bold">Trending on Neptube</h2>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
                 {[...Array(4)].map((_, i) => (
                   <YouTubeVideoCardSkeleton key={i} />
                 ))}
@@ -403,9 +532,9 @@ function FeedPage() {
 export default function FeedPageWrapper() {
   return (
     <Suspense fallback={
-      <div className="p-6">
+      <div className="max-w-[1500px] mx-auto px-6 py-6">
         <Skeleton className="h-8 w-40 mb-6" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
           {[...Array(8)].map((_, i) => (
             <VideoCardSkeleton key={i} />
           ))}

@@ -111,6 +111,15 @@
   scrollbar-color: hsl(262 40% 50% / 0.35) transparent;
 }
 
+/* Scrollbar hide utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* ──────────────── Aurora / Mesh Gradient Background ──────────────── */
 .aurora-bg {
   position: fixed;

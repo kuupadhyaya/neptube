@@ -539,6 +539,11 @@ export default function VideoPage() {
         <p className="text-muted-foreground text-sm mb-4">
           This video may have been removed or doesn&apos;t exist.
         </p>
+        {error && (
+          <p className="text-red-500 text-xs mb-4 max-w-md text-center font-mono bg-red-500/5 border border-red-500/20 rounded-lg p-3">
+            Error: {error.message}
+          </p>
+        )}
         <Link href="/feed">
           <Button variant="outline" className="gap-2">
             <ArrowLeft className="h-4 w-4" />
@@ -570,15 +575,15 @@ export default function VideoPage() {
           )}
 
           {/* Video Player */}
-          <div className="aspect-video bg-black rounded-xl overflow-hidden relative group/player">
-            <div className="absolute -inset-[1px] rounded-xl bg-gradient-to-r from-primary/0 via-primary/0 to-primary/0 group-hover/player:from-primary/30 group-hover/player:via-transparent group-hover/player:to-[hsl(190,80%,50%)]/30 transition-all duration-700 pointer-events-none" />
+          <div className="w-full bg-black rounded-xl overflow-hidden relative group/player">
+            <div className="absolute -inset-[1px] rounded-xl bg-gradient-to-r from-primary/0 via-primary/0 to-primary/0 group-hover/player:from-primary/30 group-hover/player:via-transparent group-hover/player:to-[hsl(190,80%,50%)]/30 transition-all duration-700 pointer-events-none z-20" />
             {video.videoURL ? (
               <video
                 ref={videoRef}
                 src={video.videoURL}
                 controls
                 autoPlay
-                className="w-full h-full relative z-10"
+                className="w-full aspect-video object-contain bg-black relative z-10"
                 poster={video.thumbnailURL || undefined}
                 crossOrigin="anonymous"
               >
@@ -593,7 +598,7 @@ export default function VideoPage() {
                 )}
               </video>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-white">
+              <div className="w-full aspect-video flex items-center justify-center text-white">
                 <p>Video not available</p>
               </div>
             )}
@@ -608,9 +613,9 @@ export default function VideoPage() {
           {video.tags && video.tags.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
               <Tag className="h-3.5 w-3.5 text-primary/60" />
-              {video.tags.map((tag) => (
+              {video.tags.map((tag, index) => (
                 <Badge
-                  key={tag}
+                  key={`${tag}-${index}`}
                   variant="secondary"
                   className="text-[11px] px-2 py-0.5 rounded-md bg-primary/5 text-primary/80 border border-primary/10 hover:bg-primary/10 cursor-pointer"
                 >

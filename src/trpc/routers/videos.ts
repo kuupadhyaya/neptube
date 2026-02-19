@@ -35,6 +35,14 @@ export const videosRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       const conditions = [eq(videos.visibility, "public")];
+
+      // Exclude videos explicitly marked as shorts — they have their own shelf
+      conditions.push(
+        or(
+          eq(videos.isShort, false),
+          sql`${videos.isShort} IS NULL`
+        )!
+      );
       
       // Add cursor condition for pagination
       if (input.cursor) {
@@ -50,16 +58,33 @@ export const videosRouter = createTRPCRouter({
       }
       
       // Add search conditions if search query provided
-      if (input.search && input.search.trim()) {
-        const searchTerm = `%${input.search.trim()}%`;
+      const searchTerm = input.search?.trim() || "";
+      if (searchTerm) {
+        const likeTerm = `%${searchTerm}%`;
         conditions.push(
           or(
-            ilike(videos.title, searchTerm),
-            ilike(videos.description, searchTerm),
-            ilike(users.name, searchTerm)
+            ilike(videos.title, likeTerm),
+            ilike(videos.description, likeTerm),
+            ilike(users.name, likeTerm),
+            ilike(videos.category, likeTerm),
+            sql`${videos.tags}::text ILIKE ${likeTerm}`,
+            ilike(videos.aiSummary, likeTerm)
           )!
         );
       }
+
+      // Build a relevance score so exact/title matches rank first
+      const relevanceScore = searchTerm
+        ? sql<number>`(
+            CASE WHEN LOWER(${videos.title}) = LOWER(${searchTerm}) THEN 100 ELSE 0 END
+            + CASE WHEN LOWER(${videos.title}) LIKE LOWER(${searchTerm}) || '%' THEN 50 ELSE 0 END
+            + CASE WHEN LOWER(${videos.title}) LIKE '%' || LOWER(${searchTerm}) || '%' THEN 25 ELSE 0 END
+            + CASE WHEN LOWER(${videos.category}) = LOWER(${searchTerm}) THEN 20 ELSE 0 END
+            + CASE WHEN ${videos.tags}::text ILIKE '%' || ${searchTerm} || '%' THEN 15 ELSE 0 END
+            + CASE WHEN LOWER(${videos.description}) LIKE '%' || LOWER(${searchTerm}) || '%' THEN 10 ELSE 0 END
+            + CASE WHEN LOWER(${users.name}) LIKE '%' || LOWER(${searchTerm}) || '%' THEN 5 ELSE 0 END
+          )`
+        : sql<number>`0`;
 
       const items = await ctx.db
         .select({
@@ -67,11 +92,88 @@ export const videosRouter = createTRPCRouter({
           title: videos.title,
           description: videos.description,
           thumbnailURL: videos.thumbnailURL,
+          videoURL: videos.videoURL,
           duration: videos.duration,
           viewCount: videos.viewCount,
+          likeCount: videos.likeCount,
+          dislikeCount: videos.dislikeCount,
+          commentCount: videos.commentCount,
           createdAt: videos.createdAt,
           tags: videos.tags,
           isNsfw: videos.isNsfw,
+          isShort: videos.isShort,
+          user: {
+            id: users.id,
+            name: users.name,
+            imageURL: users.imageURL,
+          },
+        })
+        .from(videos)
+        .innerJoin(users, eq(videos.userId, users.id))
+        .where(and(...conditions))
+        .orderBy(
+          ...(searchTerm
+            ? [desc(relevanceScore), desc(videos.viewCount), desc(videos.createdAt)]
+            : [desc(videos.createdAt)])
+        )
+        .limit(input.limit + 1);
+
+      let nextCursor: string | undefined = undefined;
+      if (items.length > input.limit) {
+        const nextItem = items.pop();
+        nextCursor = nextItem?.id;
+      }
+
+      return {
+        items,
+        nextCursor,
+      };
+    }),
+
+  // Get short videos only (isShort or duration <= 60s)
+  getShorts: baseProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(50).default(20),
+        cursor: z.string().uuid().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const conditions = [
+        eq(videos.visibility, "public"),
+        or(
+          eq(videos.isShort, true),
+          and(
+            sql`${videos.duration} IS NOT NULL`,
+            sql`${videos.duration} > 0`,
+            sql`${videos.duration} <= 60`
+          )
+        )!,
+      ];
+
+      if (input.cursor) {
+        const cursorVideo = await ctx.db
+          .select({ createdAt: videos.createdAt })
+          .from(videos)
+          .where(eq(videos.id, input.cursor))
+          .limit(1);
+        if (cursorVideo[0]) {
+          conditions.push(lt(videos.createdAt, cursorVideo[0].createdAt));
+        }
+      }
+
+      const items = await ctx.db
+        .select({
+          id: videos.id,
+          title: videos.title,
+          videoURL: videos.videoURL,
+          thumbnailURL: videos.thumbnailURL,
+          duration: videos.duration,
+          viewCount: videos.viewCount,
+          likeCount: videos.likeCount,
+          dislikeCount: videos.dislikeCount,
+          commentCount: videos.commentCount,
+          createdAt: videos.createdAt,
           user: {
             id: users.id,
             name: users.name,
@@ -90,10 +192,7 @@ export const videosRouter = createTRPCRouter({
         nextCursor = nextItem?.id;
       }
 
-      return {
-        items,
-        nextCursor,
-      };
+      return { items, nextCursor };
     }),
 
   // Get video by ID
@@ -961,6 +1060,7 @@ export const videosRouter = createTRPCRouter({
           tags: videos.tags,
           category: videos.category,
           isNsfw: videos.isNsfw,
+          isShort: videos.isShort,
           qualityScore: videos.qualityScore,
           user: {
             id: users.id,
