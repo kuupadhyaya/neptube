@@ -1688,3 +1688,104 @@ export function containsProfanity(text: string): boolean {
   }
   return false;
 }
+
+// ─── Reusable Toxic Comment Filter ───────────────────────────────────────────
+
+/**
+ * Result returned by filterToxicComment().
+ * When `blocked` is true, the comment must NOT be saved to the database.
+ */
+export interface FilterToxicCommentResult {
+  /** Whether the comment is blocked and must not be saved */
+  blocked: boolean;
+  /** Human-readable reason for blocking (only set when blocked=true) */
+  reason?: string;
+  /** Whether AI analysis flagged the comment as toxic */
+  isToxic: boolean;
+  /** AI toxicity score from 0 (clean) to 1 (highly toxic) */
+  toxicityScore: number;
+  /** Whether the local profanity filter matched */
+  profanityDetected: boolean;
+}
+
+/**
+ * filterToxicComment — the single, production-ready gate for ALL comment mutations.
+ *
+ * Pipeline:
+ *  1. Instant local profanity check (zero latency, no API call).
+ *     If profanity is detected the comment is blocked immediately.
+ *  2. AI-powered toxicity analysis via Pollinations.
+ *     If the score is >= the threshold (default 0.7) the comment is blocked.
+ *     If the AI call fails, the comment is allowed through (fail-open)
+ *     because the profanity filter already caught the worst offenses.
+ *
+ * Usage:
+ *   const result = await filterToxicComment(input.content);
+ *   if (result.blocked) {
+ *     throw new TRPCError({ code: "BAD_REQUEST", message: result.reason });
+ *   }
+ *   // safe to save — attach result.isToxic / result.toxicityScore to the row
+ *
+ * @param text     The raw comment text to evaluate.
+ * @param options  Optional overrides (toxicity threshold, skip AI).
+ */
+export async function filterToxicComment(
+  text: string,
+  options?: {
+    /** Toxicity score at or above which the comment is hard-blocked (default 0.7) */
+    toxicityThreshold?: number;
+    /** Skip the AI call entirely — only use the local profanity list (useful in tests) */
+    skipAI?: boolean;
+  },
+): Promise<FilterToxicCommentResult> {
+  const threshold = options?.toxicityThreshold ?? 0.7;
+
+  // ── Step 1: Instant local profanity filter ─────────────────────────────────
+  const profanityDetected = containsProfanity(text);
+  if (profanityDetected) {
+    return {
+      blocked: true,
+      reason:
+        "Your comment was removed due to community guidelines. It contains language that is not allowed on this platform.",
+      isToxic: true,
+      toxicityScore: 1,
+      profanityDetected: true,
+    };
+  }
+
+  // ── Step 2: AI toxicity analysis (Pollinations) ────────────────────────────
+  let isToxic = false;
+  let toxicityScore = 0;
+
+  if (!options?.skipAI) {
+    try {
+      const aiResult = await analyzeToxicity(text);
+      isToxic = aiResult.isToxic;
+      toxicityScore = aiResult.score;
+    } catch (err) {
+      // Fail-open: if the AI service is down, let the comment through.
+      // The local profanity filter already caught explicit slurs above.
+      console.error("[filterToxicComment] AI toxicity check failed:", err);
+    }
+  }
+
+  // Hard-block if the AI score meets or exceeds the threshold
+  if (toxicityScore >= threshold) {
+    return {
+      blocked: true,
+      reason:
+        "Your comment was removed due to community guidelines. It was flagged as toxic or hateful content.",
+      isToxic: true,
+      toxicityScore,
+      profanityDetected: false,
+    };
+  }
+
+  // ── Comment is clean — safe to save ────────────────────────────────────────
+  return {
+    blocked: false,
+    isToxic,
+    toxicityScore,
+    profanityDetected: false,
+  };
+}

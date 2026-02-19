@@ -14,7 +14,7 @@ import {
   users,
 } from "@/db/schema";
 import { TRPCError } from "@trpc/server";
-import { analyzeToxicity, containsProfanity } from "@/lib/ai";
+import { filterToxicComment } from "@/lib/ai";
 
 export const youtubeRouter = createTRPCRouter({
   /**
@@ -146,8 +146,9 @@ export const youtubeRouter = createTRPCRouter({
     }),
 
   /**
-   * Add a comment on a YouTube video (NepTube-native)
-   * Includes instant profanity filter + AI toxicity analysis
+   * Add a comment on a YouTube video (NepTube-native).
+   * Uses the unified filterToxicComment() gate — profanity + AI toxicity.
+   * Toxic comments are REJECTED (never saved to the database).
    */
   addComment: protectedProcedure
     .input(
@@ -158,37 +159,14 @@ export const youtubeRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // ── Step 1: Instant local profanity check (zero latency) ──
-      if (containsProfanity(input.content)) {
+      // ── Toxic comment filter (blocks before DB write) ──
+      const filter = await filterToxicComment(input.content);
+      if (filter.blocked) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message:
-            "Your comment contains inappropriate language and has been blocked. Please keep the conversation respectful.",
+          message: filter.reason!,
         });
       }
-
-      // ── Step 2: AI toxicity analysis ──
-      let isToxic = false;
-      let toxicityScore = 0;
-      try {
-        const toxResult = await analyzeToxicity(input.content);
-        isToxic = toxResult.isToxic;
-        toxicityScore = toxResult.score;
-      } catch (err) {
-        console.error("Toxicity analysis failed, allowing comment:", err);
-      }
-
-      // Block severely toxic comments outright
-      if (toxicityScore >= 0.8) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message:
-            "Your comment was blocked because it contains toxic or hateful content. Please be respectful.",
-        });
-      }
-
-      // Auto-hide moderately toxic comments (reviewable by admin later)
-      const shouldHide = isToxic;
 
       const [newComment] = await ctx.db
         .insert(youtubeComments)
@@ -197,9 +175,9 @@ export const youtubeRouter = createTRPCRouter({
           userId: ctx.user.id,
           content: input.content,
           parentId: input.parentId || null,
-          isToxic,
-          toxicityScore,
-          isHidden: shouldHide,
+          isToxic: filter.isToxic,
+          toxicityScore: filter.toxicityScore,
+          isHidden: false,
         })
         .returning();
 
@@ -230,7 +208,8 @@ export const youtubeRouter = createTRPCRouter({
     }),
 
   /**
-   * Edit own comment (with profanity + toxicity re-check)
+   * Edit own comment (re-runs filterToxicComment on the new content).
+   * Edited text with toxicity is rejected — the old version stays.
    */
   editComment: protectedProcedure
     .input(
@@ -253,42 +232,22 @@ export const youtubeRouter = createTRPCRouter({
         throw new TRPCError({ code: "FORBIDDEN", message: "Not your comment" });
       }
 
-      // Re-run profanity + toxicity checks on edited content
-      if (containsProfanity(input.content)) {
+      // ── Toxic comment filter (blocks before DB write) ──
+      const filter = await filterToxicComment(input.content);
+      if (filter.blocked) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message:
-            "Your edited comment contains inappropriate language. Please keep the conversation respectful.",
+          message: filter.reason!,
         });
       }
-
-      let isToxic = false;
-      let toxicityScore = 0;
-      try {
-        const toxResult = await analyzeToxicity(input.content);
-        isToxic = toxResult.isToxic;
-        toxicityScore = toxResult.score;
-      } catch (err) {
-        console.error("Toxicity analysis failed on edit:", err);
-      }
-
-      if (toxicityScore >= 0.8) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message:
-            "Your edited comment contains toxic content and has been blocked.",
-        });
-      }
-
-      const shouldHide = isToxic;
 
       const [updated] = await ctx.db
         .update(youtubeComments)
         .set({
           content: input.content,
-          isToxic,
-          toxicityScore,
-          isHidden: shouldHide,
+          isToxic: filter.isToxic,
+          toxicityScore: filter.toxicityScore,
+          isHidden: false,
           updatedAt: new Date(),
         })
         .where(eq(youtubeComments.id, input.commentId))

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq, desc, and, isNull, sql } from "drizzle-orm";
 import { baseProcedure, createTRPCRouter, protectedProcedure } from "../init";
 import { comments, users, videos, notifications } from "@/db/schema";
-import { analyzeSentiment, analyzeToxicity, detectSpam, detectEmotion, generateReplySuggestions } from "@/lib/ai";
+import { analyzeSentiment, detectSpam, detectEmotion, generateReplySuggestions, filterToxicComment } from "@/lib/ai";
 import { rateLimit, COMMENT_RATE_LIMIT } from "@/lib/rate-limit";
 import { TRPCError } from "@trpc/server";
 
@@ -101,24 +101,21 @@ export const commentsRouter = createTRPCRouter({
         });
       }
 
-      // Run sentiment, toxicity, spam, and emotion analysis in parallel
-      const [sentimentResult, toxicityResult, spamResult, emotionResult] = await Promise.all([
+      // ── Toxic comment filter (blocks before DB write) ──
+      const filter = await filterToxicComment(input.content);
+      if (filter.blocked) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: filter.reason!,
+        });
+      }
+
+      // Run enrichment analysis in parallel (sentiment, spam, emotion)
+      const [sentimentResult, spamResult, emotionResult] = await Promise.all([
         analyzeSentiment(input.content),
-        analyzeToxicity(input.content),
         detectSpam(input.content),
         detectEmotion(input.content),
       ]);
-
-      // Auto-hide toxic, spam, or negative-sentiment comments
-      const shouldHide = toxicityResult.isToxic || spamResult.isSpam || sentimentResult.sentiment === "negative";
-
-      // Block severely toxic comments from being posted at all
-      if (toxicityResult.score >= 0.85) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Your comment was blocked because it contains toxic or hateful content. Please be respectful.",
-        });
-      }
 
       const newComment = await ctx.db
         .insert(comments)
@@ -127,16 +124,17 @@ export const commentsRouter = createTRPCRouter({
           videoId: input.videoId,
           userId: ctx.user.id,
           parentId: input.parentId,
-          // ML fields
+          // Toxicity fields from filterToxicComment
+          isToxic: filter.isToxic,
+          toxicityScore: filter.toxicityScore,
+          // Enrichment fields
           sentiment: sentimentResult.sentiment,
           sentimentScore: sentimentResult.score,
-          isToxic: toxicityResult.isToxic,
-          toxicityScore: toxicityResult.score,
           isSpam: spamResult.isSpam,
           spamScore: spamResult.score,
           emotion: emotionResult.emotion,
           emotionConfidence: emotionResult.confidence,
-          isHidden: shouldHide, // Auto-hide toxic or spam comments
+          isHidden: false,
         })
         .returning();
 
@@ -196,7 +194,7 @@ export const commentsRouter = createTRPCRouter({
       return newComment[0];
     }),
 
-  // Update comment
+  // Update comment (re-runs filterToxicComment on edited content)
   update: protectedProcedure
     .input(
       z.object({
@@ -205,10 +203,22 @@ export const commentsRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // ── Toxic comment filter (blocks before DB write) ──
+      const filter = await filterToxicComment(input.content);
+      if (filter.blocked) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: filter.reason!,
+        });
+      }
+
       const updated = await ctx.db
         .update(comments)
         .set({
           content: input.content,
+          isToxic: filter.isToxic,
+          toxicityScore: filter.toxicityScore,
+          isHidden: false,
           updatedAt: new Date(),
         })
         .where(and(eq(comments.id, input.id), eq(comments.userId, ctx.user.id)))
