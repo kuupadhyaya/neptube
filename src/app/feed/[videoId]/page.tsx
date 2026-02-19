@@ -698,6 +698,12 @@ export default function VideoPage() {
     { enabled: !!videoId && showCommentSummary }
   );
 
+  // Like status
+  const { data: likeStatus } = trpc.videos.getLikeStatus.useQuery(
+    { videoId },
+    { enabled: !!isSignedIn && !!videoId }
+  );
+
   // Watch progress (resume)
   const { data: watchProgress } = trpc.history.getWatchProgress.useQuery(
     { videoId },
@@ -723,7 +729,10 @@ export default function VideoPage() {
   });
 
   const likeVideo = trpc.videos.toggleLike.useMutation({
-    onSuccess: () => utils.videos.getById.invalidate({ id: videoId }),
+    onSuccess: () => {
+      utils.videos.getById.invalidate({ id: videoId });
+      utils.videos.getLikeStatus.invalidate({ videoId });
+    },
   });
 
   const createReport = trpc.reports.create.useMutation({
@@ -1140,25 +1149,29 @@ export default function VideoPage() {
 
             <div className="flex items-center gap-1 flex-wrap">
               <Button
-                variant="outline"
+                variant={likeStatus?.isLike === true ? "default" : "outline"}
                 size="sm"
-                className="gap-1.5 rounded-lg"
-                onClick={() =>
-                  isSignedIn && likeVideo.mutate({ videoId, isLike: true })
-                }
+                className={`gap-1.5 rounded-lg ${likeStatus?.isLike === true ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}`}
+                disabled={likeVideo.isPending}
+                onClick={() => {
+                  if (!isSignedIn) return;
+                  likeVideo.mutate({ videoId, isLike: true });
+                }}
               >
-                <ThumbsUp className="h-4 w-4" />
+                <ThumbsUp className={`h-4 w-4 ${likeStatus?.isLike === true ? "fill-current" : ""}`} />
                 {formatViewCount(video.likeCount)}
               </Button>
               <Button
-                variant="outline"
+                variant={likeStatus?.isLike === false ? "default" : "outline"}
                 size="sm"
-                className="gap-1.5 rounded-lg"
-                onClick={() =>
-                  isSignedIn && likeVideo.mutate({ videoId, isLike: false })
-                }
+                className={`gap-1.5 rounded-lg ${likeStatus?.isLike === false ? "bg-red-600 hover:bg-red-700 text-white" : ""}`}
+                disabled={likeVideo.isPending}
+                onClick={() => {
+                  if (!isSignedIn) return;
+                  likeVideo.mutate({ videoId, isLike: false });
+                }}
               >
-                <ThumbsDown className="h-4 w-4" />
+                <ThumbsDown className={`h-4 w-4 ${likeStatus?.isLike === false ? "fill-current" : ""}`} />
                 {formatViewCount(video.dislikeCount)}
               </Button>
 

@@ -109,7 +109,16 @@ export const commentsRouter = createTRPCRouter({
         detectEmotion(input.content),
       ]);
 
-      const shouldHide = toxicityResult.isToxic || spamResult.isSpam;
+      // Auto-hide toxic, spam, or negative-sentiment comments
+      const shouldHide = toxicityResult.isToxic || spamResult.isSpam || sentimentResult.sentiment === "negative";
+
+      // Block severely toxic comments from being posted at all
+      if (toxicityResult.score >= 0.85) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Your comment was blocked because it contains toxic or hateful content. Please be respectful.",
+        });
+      }
 
       const newComment = await ctx.db
         .insert(comments)
