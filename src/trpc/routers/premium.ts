@@ -26,21 +26,32 @@ export const premiumRouter = createTRPCRouter({
 
   /** Get the current user's subscription details */
   getMySubscription: protectedProcedure.query(async ({ ctx }) => {
-    const sub = await ctx.db
-      .select()
-      .from(premiumSubscriptions)
-      .where(
-        and(
-          eq(premiumSubscriptions.userId, ctx.user.id),
-          eq(premiumSubscriptions.isActive, true)
-        )
-      )
-      .orderBy(desc(premiumSubscriptions.endDate))
-      .limit(1);
+    // If admin, grant VIP tier for free
+    const isAdmin = ctx.user.role === "admin";
+    const adminTier: SubscriptionTier = "vip";
 
-    const activeSub = sub[0] || null;
-    const tier = (ctx.user.subscriptionTier as SubscriptionTier) || "free";
-    const tierConfig = TIER_CONFIG[tier];
+    let tier: SubscriptionTier = (ctx.user.subscriptionTier as SubscriptionTier) || "free";
+    let tierConfig = TIER_CONFIG[tier];
+    let activeSub = null;
+
+    if (isAdmin) {
+      tier = adminTier;
+      tierConfig = TIER_CONFIG[adminTier];
+    } else {
+      const sub = await ctx.db
+        .select()
+        .from(premiumSubscriptions)
+        .where(
+          and(
+            eq(premiumSubscriptions.userId, ctx.user.id),
+            eq(premiumSubscriptions.isActive, true)
+          )
+        )
+        .orderBy(desc(premiumSubscriptions.endDate))
+        .limit(1);
+      activeSub = sub[0] || null;
+    }
+
     const adConfig = shouldShowAds(tier);
     const downloadQuota = getDownloadQuota(tier);
 
@@ -64,7 +75,9 @@ export const premiumRouter = createTRPCRouter({
       adConfig,
       downloadQuota,
       downloadsThisMonth: downloadCount[0]?.count ?? 0,
-      isExpired: ctx.user.subscriptionExpiry
+      isExpired: isAdmin
+        ? false
+        : ctx.user.subscriptionExpiry
         ? new Date() > ctx.user.subscriptionExpiry
         : tier === "free",
     };
